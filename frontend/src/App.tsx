@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Toolbar } from "./components/Toolbar";
 import { CanvasStage } from "./components/CanvasStage";
 import { VoiceBar } from "./components/VoiceBar";
+import { AuthBar } from "./components/AuthBar";
 import { fetchHealth } from "./api";
 import "./App.css";
 
@@ -23,8 +24,11 @@ export default function App() {
           <strong>ai-diagram-tool</strong>
           <span className="muted"> software architecture</span>
         </div>
-        <div className={`api-chip ${apiOk ? "up" : apiOk === false ? "down" : ""}`}>
-          API {apiOk === null ? "…" : apiOk ? "up" : "down"}
+        <div className="header-right">
+          <AuthBar />
+          <div className={`api-chip ${apiOk ? "up" : apiOk === false ? "down" : ""}`}>
+            API {apiOk === null ? "…" : apiOk ? "up" : "down"}
+          </div>
         </div>
       </header>
       <Toolbar

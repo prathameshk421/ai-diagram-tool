@@ -12,24 +12,30 @@ Embed `@excalidraw/excalidraw` as a React component. Do not fork the editor. Tar
 
 Shape correction uses the selected element’s point array and math. No vision model.
 
-## Stack: React + FastAPI + Mongo (MERN, Express later)
+## Stack: React + Firebase + FastAPI
 
-The intended long-term shape is MERN (MongoDB, Express, React, Node) **plus** a Python service.
+We started with Mongo in Compose. **Switched to Firebase** so production deploy, **Google login**, and saved diagrams live in one Google project (Spark is free to test: 1 GiB, 50k reads/day, 20k writes/day).
 
-**Right now we use FastAPI instead of Express.** Python is already the plan for later geometry/intent helpers (and optional numpy). One API is enough for the first web layout. Express can sit in front or beside FastAPI later if we need Node-specific work; that is not started.
+MongoDB / Atlas / Express are **not** in the repo. Do not reintroduce them without a new decision.
 
 | Piece | Choice | Why |
 |---|---|---|
 | Frontend | React + Vite + TypeScript | Excalidraw ships as a React component; Vite is the usual host |
-| API | FastAPI | Requested for now; simple JSON, CORS, async Mongo later |
-| DB | MongoDB | Document store matches an Excalidraw scene JSON blob |
-| Voice v1 | Web Speech API in the browser | No backend, no API key, matches local-first demo |
-| Geometry v1 | Frontend TypeScript | Selection lives in the editor; no need to round-trip points yet |
+| Auth | Firebase Auth, Google provider | Requested for production; Spark includes Auth |
+| DB | Cloud Firestore | Same project as Auth; document JSON fits a scene (watch the 1 MB doc limit) |
+| Hosting | Firebase Hosting | Production URL without a separate VPS |
+| API | FastAPI | Still useful for later Python geometry/intent; **not** the database |
+| Voice v1 | Web Speech API in the browser | Mic stays local; Firebase is not STT |
+| Geometry v1 | Frontend TypeScript | Selection lives in the editor |
+
+## Saves vs free quota
+
+Debounce Firestore writes (button or ~30s), never per-stroke. Testing will not hit 20k writes/day. Stay on Spark until we outgrow it.
 
 ## What v1 will not do
 
-No text-to-diagram, no whole-board generation from a monologue, no Rumik/Ira-style talking companion, no icon library, English commands only.
+No text-to-diagram, no whole-board generation from a monologue, no Rumik/Ira-style talking companion, no icon library, English commands only. No live multiplayer.
 
 ## Tests
 
-Backend: a small FastAPI TestClient check on `/api/health` so the layout is not a dead folder. Frontend tests wait until Excalidraw is actually mounted.
+Backend: FastAPI TestClient on `/api/health`. Frontend tests wait until Excalidraw is actually mounted. Auth is skipped in CI until Firebase emulators exist.

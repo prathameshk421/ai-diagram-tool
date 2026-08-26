@@ -2,6 +2,12 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Firebase instead of Mongo
+
+- Auth / data / hosting is **Firebase** (Google login, Firestore, Hosting). Mongo and `docker-compose` database are gone.
+- FastAPI kept for `/api/health` only; scenes are not stored there.
+- Updated `docs/features.md`, `AGENTS.md`, `DECISIONS.md`, `FLOW.md`, README, and the frontend sign-in placeholder.
+
 ## 2026-08-26 — Uppercase agent docs
 
 - Renamed `agent.md` → `AGENTS.md`.

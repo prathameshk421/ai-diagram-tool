@@ -5,24 +5,30 @@
 ## Processes (dev)
 
 ```
-Browser  :5173  →  Vite (React)  ──proxy /api──►  FastAPI :8000  ──►  MongoDB :27017
-                                      │
-                                      └── Excalidraw lives only in the browser
+Browser  :5173  →  Vite (React)
+                      │
+                      ├── Excalidraw (canvas, selection, undo)
+                      ├── Firebase Auth (Google sign-in)
+                      ├── Cloud Firestore (saved scenes, per user)
+                      └── optional proxy /api  →  FastAPI :8000  (health only)
 ```
 
-1. `docker compose up mongo` — database (optional until save exists).
-2. `uvicorn` in `backend/` — API.
-3. `npm run dev` in `frontend/` — UI.
+1. `npm run dev` in `frontend/` — UI.
+2. `uvicorn` in `backend/` — optional health API.
+3. Copy `frontend/.env.example` → `frontend/.env` with a real Firebase web config when you want login/save.
+
+No Docker database. No Mongo.
 
 ## User loop (target, once canvas is wired)
 
-1. User draws on Excalidraw (freehand, boxes, arrows).
-2. User **selects** one or more elements (click / shift-click / drag).
-3. User hits a toolbar button **or** holds the mic and says an English command (`perfect`, `align left`, …).
-4. Frontend reads `selectedElementIds`. Empty → toast “Select a shape first” and stop.
-5. Frontend runs the matching operation on those elements only (perfect / align / …).
-6. Excalidraw `updateScene` commits the change (undo works).
-7. Optional later: `POST /api/scenes` stores the scene JSON in Mongo. Not required for the demo to work.
+1. Optional: **Sign in with Google**.
+2. User draws on Excalidraw (freehand, boxes, arrows).
+3. User **selects** one or more elements.
+4. User hits a toolbar button **or** holds the mic and says an English command (`perfect`, `align left`, …).
+5. Frontend reads `selectedElementIds`. Empty → toast “Select a shape first” and stop.
+6. Frontend runs the matching operation on those elements only.
+7. Excalidraw `updateScene` commits the change (undo works).
+8. If signed in: debounce-write scene JSON to Firestore under `users/{uid}/scenes/{id}`.
 
 ## Voice
 
@@ -30,14 +36,16 @@ Browser  :5173  →  Vite (React)  ──proxy /api──►  FastAPI :8000  ─
 Mic → Web Speech API (browser) → transcript string → keyword map → same operation as the button
 ```
 
-The backend does not hear audio in v1.
+Firebase does not hear audio in v1.
 
-## Backend (now)
+## Auth and data
 
-| Method | Path | Role |
-|---|---|---|
-| GET | `/api/health` | Liveness; used by the UI status chip |
-| GET | `/api/scenes` | Stub: list saved scenes (empty until persist exists) |
+| Piece | Where |
+|---|---|
+| Google login | Firebase Auth, popup/redirect from the React app |
+| Scene documents | Firestore; security rules: only the signed-in uid |
+| Production static app | Firebase Hosting (`firebase.json`) |
+| FastAPI | `GET /api/health` only for now |
 
 ## Where a bug might live
 
@@ -46,5 +54,6 @@ The backend does not hear audio in v1.
 | Canvas missing / tools broken | `frontend/src` Excalidraw mount |
 | Button does nothing | Selection empty vs operation code |
 | Mic does nothing | Browser (Chrome), permissions, Web Speech |
-| UI “API down” | FastAPI not running; CORS; Vite proxy |
-| Save fails (later) | Mongo not up; `MONGODB_URI` |
+| Sign-in fails | `frontend/.env` Firebase keys; Google provider enabled in console; authorized domain |
+| Save fails | Not signed in; Firestore rules; scene > 1 MB |
+| UI “API down” | FastAPI not running (optional); CORS; Vite proxy |
