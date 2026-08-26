@@ -1,0 +1,79 @@
+.app {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  height: 100%;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid #2a2e38;
+}
+
+.muted {
+  color: #9aa3b2;
+  margin-left: 8px;
+  font-size: 0.9rem;
+}
+
+.api-chip {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #2a2e38;
+}
+
+.api-chip.up {
+  background: #1f3d2f;
+  color: #b6f0c8;
+}
+
+.api-chip.down {
+  background: #3d1f1f;
+  color: #f0b6b6;
+}
+
+.toolbar,
+.voice-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid #2a2e38;
+  flex-wrap: wrap;
+}
+
+.voice-bar {
+  border-top: 1px solid #2a2e38;
+  border-bottom: none;
+}
+
+button {
+  background: #2a3144;
+  color: inherit;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #3a4460;
+}
+
+.canvas-stage {
+  margin: 16px;
+  border: 1px dashed #3a4460;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #9aa3b2;
+  background: #181b22;
+}
+
+.hint {
+  font-size: 0.85rem;
+  color: #9aa3b2;
+}

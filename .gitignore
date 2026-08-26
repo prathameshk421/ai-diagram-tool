@@ -3,5 +3,14 @@ dist/
 build/
 .env
 .env.*
+!.env.example
 *.log
 .DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+frontend/dist/
+backend/.venv/
