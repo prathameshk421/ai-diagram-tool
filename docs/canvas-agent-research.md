@@ -1,22 +1,26 @@
-# Canvas research: an agent-optimized scene (not a drawing dump)
+# Canvas research: Excalidraw-like drawing, specialized for architecture
 
-**Status:** research only. This file does **not** ship a board. The running slice is still voice → Command JSON with no geometry (`docs/features.md` §4, `docs/implementation-plan.md` locked item 6).
+**Product (what you are building):** a **drawing / editing board**, in the same family as Excalidraw or tldraw — pan, zoom, click-drag boxes, arrows, select, nudge. It is **not** a generic whiteboard. It is specialized for **software architecture diagrams** (services, datastores, queues, actors, labeled connections). You draw. Voice or type then **edits what is already on the board** (“align these”, “connect these”, “perfect this box”).
 
-**Question:** how do we build a canvas that an LLM agent can understand and mutate, without asking the model to do the math?
+**This file is research only.** It does not ship a board. The running slice is still voice → Command JSON with no geometry.
 
-**Answer:** keep three layers. The model talks in **named ops and relations**. Code owns **boxes, grids, and solvers**. The renderer only paints the solved geometry.
+**Not the product:** Graphviz, Mermaid, C4-as-code, Structurizr, or a “graph visualization” app where you only type a model and the tool auto-draws everything. Those papers are listed later as *layout math you can steal under the board*, not as the UI.
+
+**“Graph” in this note means the data under your drawing**, not the app type. A box is a node. An arrow is an edge. That bookkeeping is how “connect these two” and “align left” have something to operate on. The user still draws on a canvas.
+
+**Question:** how does an AI agent understand that board and apply edits, without doing pixel math?
+
+**Answer:** the model names the edit (`align`, `connect`, …). Code moves the boxes. The board paints the result.
 
 ```
+you draw on the board (boxes, arrows, selection)
+        ↓
 speech/type  →  Command {op, args}     already shipped
                     ↓
-             tool on selection
+             tool runs on the current selection
                     ↓
-     logical scene  →  constraints  →  solved AABBs  →  pixels
-                    ↑
-             compact AgentView (no raw x/y)
+     scene (boxes+arrows)  →  geometry math  →  the same board updates
 ```
-
-That split is already locked in this repo: Command JSON is the contract, the LLM never emits coordinates, and a later canvas binds the same ops as tools against an agent-optimized scene — not an Excalidraw/tldraw dump (`docs/features.md` §3, §7).
 
 ---
 
@@ -37,9 +41,13 @@ So “the math shit” is not something DeepSeek should approximate. It is a sma
 
 ---
 
-## 2. The three-layer scene (what to build)
+## 2. What sits under the drawing board
 
-Steal the C4/Structurizr idea: **model ≠ view ≠ pixels**. Structurizr’s pitch for agents is the same as ours — a text-shaped architecture model, layout as a separate engine ([Why “as code”?](https://docs.structurizr.com/as-code), [Structurizr](https://structurizr.com/)).
+The **UI** is a drawing tool. Under it you keep a small scene so the agent is not reading ink strokes.
+
+This is the same split drawing tools already have (Excalidraw elements, tldraw shapes) — just **narrower** (architecture boxes and connectors) and **cleaner for the model** (named kinds, not a generic element dump).
+
+C4/Structurizr is listed because they also separate “what the boxes mean” from “where the pixels are”. You are not building Structurizr. You are building the drawing tool; this split is only the internals.
 
 | Layer | Lives in | What it stores | Who writes it |
 |---|---|---|---|
@@ -69,11 +77,13 @@ The agent never sees stroke JSON, z-index bags, or font metrics. It sees somethi
 
 Ids are **minted by code**, not by the LLM (already locked: implementation plan item 10). Selection comes from the canvas, which retires today’s `selectionCount` stub.
 
-### Why a graph, not a tree
+### Why the scene is boxes + arrows (not a widget tree)
 
-Architecture diagrams are **compound graphs**: a box can sit in a group *and* be aligned with a sibling *and* own an edge. MIT **Bluefish** (UIST 2024) is the diagram-language paper for that: relations are not UI components with sole ownership of children; layout is jointly determined, and the runtime is a relational scenegraph ([paper](https://vis.csail.mit.edu/pubs/bluefish.pdf), [site](https://vis.csail.mit.edu/pubs/bluefish/)).
+An architecture drawing is boxes you can group, align, and wire. A UI-style parent/child tree is a bad fit: one box can sit in a VPC group *and* line up with a sibling *and* have an arrow to a database.
 
-Bluefish’s standard relations are almost our Command list: Align, Distribute, Stack, Contain, connector. That is the vocabulary the agent should keep using. The solver behind those words can change without changing the tools.
+MIT **Bluefish** (UIST 2024) is the diagram-language paper for that kind of board: Align, Distribute, Stack, Contain, connector — almost your Command list ([paper](https://vis.csail.mit.edu/pubs/bluefish.pdf), [site](https://vis.csail.mit.edu/pubs/bluefish/)).
+
+When this note says “graph”, it means that boxes-and-arrows scene, **inside** the drawing tool. It does not mean “ship a graph-drawing product instead of Excalidraw.”
 
 ---
 
@@ -168,12 +178,12 @@ That is the right stack for *math illustration*, the wrong stack for interactive
 | **Pelican** | Queryable bboxes + predicates (contain, overlap, align, distance) | Local propagation; optional Kiwi | Closest “diagrams for agents” design. Agent **reads** geometry, **writes** relations. [repo](https://github.com/femtomc/pelican) |
 | **AIDL** | Hierarchical named parts + constraints (`above`, coincident, …) | Geometric constraint solver | Language designed *for* LLMs: names and relations, solver does space. [arXiv:2502.09819](https://arxiv.org/abs/2502.09819), [code](https://github.com/deGravity/aidl) |
 | **Bluefish** | Declarative relations in TypeScript | Local propagation on a relational scenegraph | Relation API ≈ our tools. [PDF](https://vis.csail.mit.edu/pubs/bluefish.pdf) |
-| **Structurizr / C4** | DSL model (people, systems, rels) | Auto or manual layout in the view | Architecture belongs in the logical layer, not in pixels |
+| **Structurizr / C4** | DSL model (people, systems, rels) | Auto or manual layout in the view | Steal the *split* (meaning vs pixels). Do not replace the drawing board with a DSL. |
 | **diag-agent** | PlantUML / Mermaid / C4 text | Kroki renderer | Good for *generate a whole diagram*. This product refused whole-board generation from a speech dump. Use as a cousin, not the path. |
 | **agentic-scene-graph** | JSON furniture + relational rules | CP-SAT on a grid | Same thesis in 3D rooms: LLM declares, solver places. [repo](https://github.com/divinrkz/agentic-scene-graph) |
 | **LaySPA / LayoutAgent** | Structured canvas spec or VLM scene graph | RL policy or diffusion for boxes | Research on *generating* layouts. We are *editing* a live selection. Different job. |
 
-**Excalidraw** (the `frontend/` placeholder) is a human ink editor. Its document is a bad agent IR: arrows as freehand polylines, unbound text, element IDs, files, frames. Binding Command tools to Excalidraw JSON would recreate the “dump-the-scene” anti-pattern this slice already rejected.
+**Excalidraw as a product** is the right *kind* of app (draw on a board). **Excalidraw’s saved document JSON** is a bad thing to dump into the LLM (freehand polylines, unbound text, frames). Build the same kind of board; keep your own architecture scene behind it. You can even render with a custom SVG or an editor kit — the agent still talks to your scene, not the editor file.
 
 ---
 
@@ -285,7 +295,7 @@ Stay inside the locked product: no whole-diagram generation, no vision pretty-up
 3. **`connect` + straight edges.** Logical edge list; clip the line to box borders (geometry: intersect segment with rectangle).
 4. **`perfect` + `rotate`.** Shape enum + 90° swap. “Perfect this circle” is already an intent op; execution snaps the AABB and `shape`.
 5. **`toAgentView(scene)`.** Relative relations. Optionally feed it back on the next intent call as context *in addition to* `{transcript, selectionCount}` — still no coordinates in the *output* schema.
-6. **Custom renderer** (SVG). Not Excalidraw. Not tldraw document export. Pan/zoom is view-transform over the same boxes.
+6. **The board itself** — pan/zoom/draw like Excalidraw, but architecture stencils (service, store, queue, actor) instead of a full ink toolbox. The renderer reads `scene.nodes[].box`. Do not pipe the editor’s raw file format into the model.
 7. **Persistent constraints + kiwi** only after drag exists and “align” should survive a later move.
 8. **elkjs** only for “place a newly created node” or an explicit tidy op you have not locked yet. Adding a `tidy` op is a **product** change (`docs/features.md`), not a silent extra.
 
@@ -338,4 +348,4 @@ When you open a canvas PR, update `docs/features.md` §7 with the scene fields y
 
 ## 10. One-sentence design
 
-**The canvas is a small architecture graph plus a box kernel; the agent calls `align`/`connect`/… on a selection and reads back labels and “left of / connected to”, while every pixel is solved in code.**
+**You are building an Excalidraw-like architecture drawing tool. The agent calls `align` / `connect` / … on the current selection; code moves the boxes; the board is what the user sees.**
