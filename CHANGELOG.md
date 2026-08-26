@@ -2,6 +2,14 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Closed applyEditPlan scene edit API
+
+- Agent writes go through typed tools (`src/agent/edit/`) batched by `applyEditPlan`. Failed calls and `compile()` throws roll back to the original scene (SHA unchanged).
+- `desugarCommand` maps the original Command ops onto those tools. `applyCommand` / command `applyTurn` share that write path.
+- JSON Patch rejects host fields (`selection`, `lastDrawn`, `schema`, `view`), whole `/nodes` or `/edges` replace/remove, and RFC6902 `-`.
+- Kernel passes `insertOnPath` / `annotatePath` / `mergeNodes` throw on missing edge, no path, or missing keep (no silent no-op).
+- `semanticDiff` reports topology, labels, and kinds only — never coordinates.
+
 ## 2026-08-26 — Box labels and pen strokes actually work in the browser
 
 - Drawing a box now opens the label field (type, Enter). Double-click still edits; that path uses `dblclick`, not `pointerdown.detail` (often 0).

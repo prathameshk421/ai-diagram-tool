@@ -2,6 +2,10 @@
 
 **This file is for the agent.** Record why a stack, library, test, or design was chosen. Add a section whenever you decide something non-obvious.
 
+## Typed edit tools over free JSON Patch
+
+The agent write API is a closed set of `EditToolCall`s applied by `applyEditPlan`, not open RFC6902. Free patch can target `/selection`, splice with `-` (NaN), or replace whole `/nodes`. Typed tools cannot express `pin.x` / width / ink points; the kernel still owns geometry. Command JSON `{op, args}` remains the LLM output for the original nine ops — `desugarCommand` is the adapter so there is one write path. JSON Patch stays for existing tests and host-gated turns, with a denylist for host fields and whole-record replace.
+
 ## Product domain
 
 Software / system architecture diagrams (system design, AI/ML pipelines, cloud infra). Not building floor plans.

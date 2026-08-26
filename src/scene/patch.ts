@@ -39,6 +39,8 @@ function getAt(root: unknown, parts: string[]): { parent: Record<string, unknown
   };
 }
 
+const HOST_PATH_KEYS = new Set(["selection", "lastDrawn", "schema", "view"]);
+
 export function applyJsonPatch(scene: Scene, ops: JsonPatchOp[]): Scene {
   const next = cloneJson(scene);
   for (const op of ops) {
@@ -46,6 +48,19 @@ export function applyJsonPatch(scene: Scene, ops: JsonPatchOp[]): Scene {
       throw new AgentWriteError(`forbidden path ${op.path}`);
     }
     const parts = op.path.split("/").filter(Boolean).map(decodePointer);
+    if (parts.some((part) => HOST_PATH_KEYS.has(part))) {
+      throw new AgentWriteError(`forbidden path ${op.path}`);
+    }
+    if (parts.includes("-")) {
+      throw new AgentWriteError(`invalid array index '-' in ${op.path}`);
+    }
+    if (
+      (op.op === "replace" || op.op === "remove") &&
+      parts.length === 1 &&
+      (parts[0] === "nodes" || parts[0] === "edges")
+    ) {
+      throw new AgentWriteError(`cannot ${op.op} whole /${parts[0]}`);
+    }
     const slot = getAt(next, parts);
     if (!slot) throw new AgentWriteError(`path not found ${op.path}`);
     if (op.op === "remove") {

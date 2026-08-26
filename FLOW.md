@@ -29,14 +29,16 @@ Browser  :5173  →  Vite (repo root)
 6. Host WONTFIX: a long “build/generate a … architecture/pipeline” paragraph does not write the file and does not call OmniRoute.
 7. Otherwise `resolveCommand` always `POST /api/intent` when OmniRoute URL+key are set. Payload: `{ transcript, selectionCount, selection }`.
 8. Missing OmniRoute key → toast. No regex fallback.
-9. `applyTurn` maps Command JSON (or a JSON Patch) onto the scene through the kernel. Questions return an answer and do not write.
+9. `applyTurn` maps Command JSON onto the scene through `desugarCommand` + `applyEditPlan` (or a JSON Patch). Questions return an answer and do not write.
 10. Preview shows Command JSON, optional answer, and the **agent-facing** scene (no `ink.points`, plus `view`).
 
 ## Scene kernel
 
 ```
 scene JSON
-  → agent patch / Command map   (forbidden: pin.x, width, height, points)
+  → Command → desugarCommand → applyEditPlan tools
+    (or JSON Patch, denylist: pin.x, width, height, points, selection, lastDrawn)
+  → compile after each tool; any failure rolls back the original scene
   → passes (one-shot, then cleared)
   → constraints (then cleared)
   → layout unpinned / unlocked
@@ -48,7 +50,7 @@ Human drag does not run OmniRoute. It writes `pin` on the stored scene.
 
 ```
 Human draw or drag → scene.pin / ink.points → board
-Agent Command/patch → kernel → scene → board
+Agent EditToolCall[] / Command / patch → kernel → scene → board
 Board selection[] → next OmniRoute user payload
 ```
 
