@@ -8,3 +8,33 @@ Voice-driven architecture-diagram **agent path**: Groq Whisper transcribes; keyw
 **This slice ships:** harness UI + Groq STT + OmniRoute intent. A later canvas will consume the same Command as agent tools against an agent-optimized scene.
 
 Keys are pasted in Settings. No env-key fallback. No Web Speech. Thinking is off. Keywords first.
+
+## Run
+
+```bash
+npm install
+npm test
+npm run dev
+```
+
+Open `http://localhost:5173`. Paste keys in Settings. Type `align left` to see Command JSON without any keys.
+
+## Settings
+
+| Field | Default |
+|---|---|
+| OmniRoute URL | `http://localhost:20128` |
+| OmniRoute API key | empty |
+| Groq API key | empty |
+| LLM model | DeepSeek Flash (`opencode-go/deepseek-v4-flash`) |
+
+Wire OpenCode Go DeepSeek in the OmniRoute dashboard. This app does not install OpenCode.
+
+## curl
+
+```bash
+# Missing Groq key → 401 even if GROQ_API_KEY is in the shell
+export GROQ_API_KEY=must-not-be-used
+curl -sS http://localhost:5173/api/transcribe
+# {"error":"missing_groq_key"}
+```
