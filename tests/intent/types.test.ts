@@ -1,19 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  FLASH_MODEL,
   MISSING_OMNIROUTE_SAY,
-  PRO_MODEL,
   isCommand,
   parseCommandJson,
 } from "../../src/intent/types";
 import { SYSTEM_PROMPT } from "../../src/intent/systemPrompt";
-
-describe("model ids", () => {
-  it("freezes OpenCode Go DeepSeek ids", () => {
-    expect(FLASH_MODEL).toBe("opencode-go/deepseek-v4-flash");
-    expect(PRO_MODEL).toBe("opencode-go/deepseek-v4-pro");
-  });
-});
 
 describe("SYSTEM_PROMPT", () => {
   it("requires json and forbids coordinates", () => {

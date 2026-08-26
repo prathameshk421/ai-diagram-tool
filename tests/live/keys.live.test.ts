@@ -7,5 +7,6 @@ describe("live keys", () => {
     expect(keys.groq.length).toBeGreaterThan(0);
     expect(keys.omnirouteKey.length).toBeGreaterThan(0);
     expect(keys.omnirouteUrl).toMatch(/^https?:\/\//);
+    expect(keys.omnirouteModel.length).toBeGreaterThan(0);
   });
 });

@@ -20,9 +20,6 @@ export type Command = {
   say: string;
 };
 
-export const FLASH_MODEL = "opencode-go/deepseek-v4-flash";
-export const PRO_MODEL = "opencode-go/deepseek-v4-pro";
-
 export const ALIGN_EDGES = [
   "left",
   "right",

@@ -17,7 +17,7 @@ If you edited code and skipped `CHANGELOG.md`, the change is incomplete. If you 
 
 ## Product (this slice)
 
-Voice-driven **architecture board**. Speak or type a short command. Groq Whisper transcribes. The host `runPipeline` orchestrator then runs injectable enhance → judge → command **or** build/plan tools. Production injects `runEnhancer` and `runJudge` (OmniRoute JSON; host `bindReferents` after the enhancer). Remaining commands without a valid `enhance.command` still go to OmniRoute OpenCode Go DeepSeek (no keyword table). **`applyEditPlan` is the write API.** The scene is `arch-scene/v1` (`diagram.arch.json` in `localStorage`): the agent patches semantics; the kernel owns pins, sizes, and routes. Humans draw, select, and drag on an SVG board.
+Voice-driven **architecture board**. Speak or type a short command. Groq Whisper transcribes. The host `runPipeline` orchestrator then runs injectable enhance → judge → command **or** build/plan tools. Production injects `runEnhancer` and `runJudge` (OmniRoute JSON; host `bindReferents` after the enhancer). Remaining commands without a valid `enhance.command` still go to OmniRoute (no keyword table). **`applyEditPlan` is the write API.** The scene is `arch-scene/v1` (`diagram.arch.json` in `localStorage`): the agent patches semantics; the kernel owns pins, sizes, and routes. Humans draw, select, and drag on an SVG board.
 
 Command JSON `{op, args, confidence, say}` is still the LLM output for the original ops (`desugarCommand` → `applyEditPlan`). Build/plan emit `EditToolCall[]`. Questions, undo, asks, and paste/zoom are host channels and must not dirty the file SHA. Clarifications use `ClarifyPanel`, not toast-only. Verify is `verifyEdit` predicates + tool trace — never a screenshot or vision model.
 
@@ -25,11 +25,11 @@ Command JSON `{op, args, confidence, say}` is still the LLM output for the origi
 
 - **Current app:** React + Vite + TypeScript at the **repo root** (`src/`, `src/scene/`, `src/canvas/`, `server/proxy.ts`). `npm run dev` here.
 - **STT:** Groq `whisper-large-v3-turbo` via same-origin `POST /api/transcribe`. No Web Speech.
-- **Intent:** OmniRoute `POST /api/intent` → `{base}/v1/chat/completions` via `requestChatRole` (enhancer, judge, command, build, plan). Default `opencode-go/deepseek-v4-flash`. No keyword parser.
+- **Intent:** OmniRoute `POST /api/intent` → `{base}/v1/chat/completions` via `requestChatRole` (enhancer, judge, command, build, plan). Model id is `OMNIROUTE_MODEL` from `.env` (no Settings picker). No keyword parser.
 - **Write API:** `applyEditPlan` (`src/agent/edit/`). Never send screenshots to the model. Verify is scene predicates (`src/agent/verify/`).
 - **Scene:** `arch-scene/v1` in `src/scene/`. Validator + passes + constraints + layout. Persist JSON (YAML-shaped types; no yaml dependency).
 - **Board:** SVG in `src/canvas/`. Not Excalidraw. Human drag writes `pin` only. Camera pan/zoom is not stored.
-- **Keys:** Settings / `localStorage` only. The Vite proxy must **not** read `process.env`. Live tests (`npm run test:live`) may read `GROQ_API_KEY` and `OMNIROUTE_API_KEY` in the test runner.
+- **Keys:** Settings / `localStorage` only. The Vite proxy must **not** read `GROQ_API_KEY` or `OMNIROUTE_API_KEY`. Vite inlines `OMNIROUTE_MODEL` at dev/build. Live tests (`npm run test:live`) may read `GROQ_API_KEY`, `OMNIROUTE_API_KEY`, `OMNIROUTE_URL`, and `OMNIROUTE_MODEL` in the test runner.
 - **Later layout only:** `frontend/`, `backend/`, `firebase/` came from `main`. Do not treat them as the running app. Do not wire Excalidraw or Web Speech.
 
 ## Do

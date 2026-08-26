@@ -1,4 +1,3 @@
-import { FLASH_MODEL, PRO_MODEL } from "../intent/types";
 import type { Settings } from "../settings/store";
 
 type Props = {
@@ -14,10 +13,8 @@ export function SettingsDrawer({ draft, onChange, onSave, onClose }: Props) {
       <h2>Settings</h2>
       <p className="help">
         Keys stay in this browser. They are sent only to Groq (speech) and your
-        OmniRoute URL (commands). Configure an OpenCode Go DeepSeek connection
-        and an OmniRoute API key in the OmniRoute dashboard. This app does not
-        install OpenCode. To use Pro, pick DeepSeek Pro after that model is
-        wired in OmniRoute.
+        OmniRoute URL (commands). The model id is <code>OMNIROUTE_MODEL</code> in
+        <code>.env</code> — there is no model picker here.
       </p>
       <label>
         OmniRoute URL
@@ -52,20 +49,6 @@ export function SettingsDrawer({ draft, onChange, onSave, onClose }: Props) {
           placeholder="gsk_…"
           autoComplete="off"
         />
-      </label>
-      <label>
-        LLM model
-        <select
-          value={
-            draft.omnirouteModel === PRO_MODEL ? PRO_MODEL : FLASH_MODEL
-          }
-          onChange={(event) =>
-            onChange({ ...draft, omnirouteModel: event.target.value })
-          }
-        >
-          <option value={FLASH_MODEL}>DeepSeek Flash</option>
-          <option value={PRO_MODEL}>DeepSeek Pro</option>
-        </select>
       </label>
       {!draft.groqApiKey.trim() ? (
         <p className="warn">Voice needs a Groq key.</p>

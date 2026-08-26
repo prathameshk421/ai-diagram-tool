@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FLASH_MODEL, MISSING_OMNIROUTE_SAY, unknownCommand } from "../../src/intent/types";
+import { MISSING_OMNIROUTE_SAY, unknownCommand } from "../../src/intent/types";
 import type { Settings } from "../../src/settings/store";
 import { apiDbScene, twoKafkaScene } from "../scene/fixtures";
 
@@ -7,7 +7,7 @@ const keyed: Settings = {
   omnirouteUrl: "http://localhost:20128",
   omnirouteApiKey: "sk_test",
   groqApiKey: "",
-  omnirouteModel: FLASH_MODEL,
+  omnirouteModel: "test/model",
 };
 
 function okChat(content: string) {

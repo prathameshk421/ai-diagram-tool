@@ -12,8 +12,7 @@ import type {
 } from "../../src/agent/pipeline/session";
 import { TURN_CAPS } from "../../src/agent/pipeline/budgets";
 import { hasEdge, noEdge, verifyEdit } from "../../src/agent/verify/predicates";
-import type { Command } from "../../src/intent/types";
-import { FLASH_MODEL, UNKNOWN_SAY } from "../../src/intent/types";
+import { UNKNOWN_SAY, type Command } from "../../src/intent/types";
 import { cloneJson } from "../../src/scene/clone";
 import { sceneHash } from "../../src/scene/hash";
 import type { Settings } from "../../src/settings/store";
@@ -23,7 +22,7 @@ const keyed: Settings = {
   omnirouteUrl: "http://localhost:20128",
   omnirouteApiKey: "sk_test",
   groqApiKey: "",
-  omnirouteModel: FLASH_MODEL,
+  omnirouteModel: "test/model",
 };
 
 const alignLeft: Command = {

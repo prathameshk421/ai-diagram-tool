@@ -35,7 +35,7 @@ LLMs are strong at *naming* (“align these left”, “API talks to the DB”) 
 | CAD DSLs that force the model to emit coordinates lose to a **solver-aided** language even when the coordinate language is in the training set (OpenSCAD). | Jones et al., *AIDL*, [arXiv:2502.09819](https://arxiv.org/abs/2502.09819) |
 | Dumping a raw editor document into the prompt is exactly what this product refused. | `docs/features.md` §2 “Screenshot / dump-the-scene agents” |
 
-So “the math shit” is not something DeepSeek should approximate. It is a small, deterministic kernel you write once, then expose as tools whose args already exist in `src/intent/types.ts`.
+So “the math shit” is not something the LLM should approximate. It is a small, deterministic kernel you write once, then expose as tools whose args already exist in `src/intent/types.ts`.
 
 **LayoutGPT** ([Feng et al., NeurIPS 2023](https://arxiv.org/abs/2305.15393)) is the other fork in the road: they *do* ask the LLM for `left/top/width/height`, but wrap them as CSS so the numbers have names. That helps image/scene *generation*. It is the wrong default here. This product already rejects coordinate keys (`x`, `y`, `width`, `height`, `points`, `cx`, `cy`) at parse time. Keep that. Let code compute the numbers.
 

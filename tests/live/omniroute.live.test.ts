@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { FLASH_MODEL } from "../../src/intent/types";
 import { SYSTEM_PROMPT } from "../../src/intent/systemPrompt";
 import {
   MAX_LIVE_OMNIROUTE_CHATS,
@@ -30,7 +29,7 @@ async function getJson(
 
 describe("live OmniRoute intent", () => {
   it(`probes /api/rate-limits then sends at most ${MAX_LIVE_OMNIROUTE_CHATS} chat`, async () => {
-    const { key, url } = requireOmnirouteKeys();
+    const { key, url, model } = requireOmnirouteKeys();
 
     const models = await getJson(`${url}/v1/models`, key);
     expect(
@@ -40,12 +39,12 @@ describe("live OmniRoute intent", () => {
 
     const limits = await getJson(`${url}/api/rate-limits`, key);
     if (limits.status === 200) {
-      const blocked = omnirouteChatBlocked(limits.body);
+      const blocked = omnirouteChatBlocked(limits.body, Date.now(), model);
       expect(blocked, blocked ?? "").toBeNull();
     }
 
     const payload = {
-      model: FLASH_MODEL,
+      model,
       temperature: 0,
       stream: false,
       max_tokens: 80,
@@ -77,7 +76,10 @@ describe("live OmniRoute intent", () => {
       refuseRateLimitRetry(res.statusCode),
       refuseRateLimitRetry(res.statusCode) ?? "",
     ).toBeNull();
-    expect(res.statusCode).toBe(200);
+    expect(
+      res.statusCode,
+      `${model} HTTP ${res.statusCode}: ${res.bodyText().slice(0, 240)}`,
+    ).toBe(200);
 
     const parsed = JSON.parse(res.bodyText()) as {
       choices?: { message?: { content?: string } }[];

@@ -8,7 +8,7 @@
  *
  * OmniRoute: GET /api/rate-limits (connections + lockouts), then at most one
  * chat completion. Skip when a connection has a future rateLimitedUntil or a
- * DeepSeek/OpenCode lockout.
+ * a lockout on the live `OMNIROUTE_MODEL`.
  */
 
 export const GROQ_WHISPER_MODEL = "whisper-large-v3-turbo";
@@ -60,12 +60,17 @@ function isFutureTimestamp(value: unknown, now: number): boolean {
   return false;
 }
 
-function lockoutTouchesDeepSeek(value: Record<string, unknown>): boolean {
+function lockoutTouchesRoutedModel(
+  value: Record<string, unknown>,
+  liveModel: string,
+): boolean {
   const blob = JSON.stringify(value).toLowerCase();
+  if (!liveModel) return true;
+  const [provider, id] = liveModel.split("/");
   return (
-    blob.includes("deepseek") ||
-    blob.includes("opencode-go") ||
-    blob.includes("opencode")
+    blob.includes(liveModel) ||
+    (provider ? blob.includes(provider) : false) ||
+    (id ? blob.includes(id) : false)
   );
 }
 
@@ -76,14 +81,19 @@ function lockoutTouchesDeepSeek(value: Record<string, unknown>): boolean {
 export function omnirouteChatBlocked(
   statusBody: unknown,
   now = Date.now(),
+  liveModel = "",
 ): string | null {
-  return walkOmnirouteStatus(statusBody, now);
+  return walkOmnirouteStatus(statusBody, now, liveModel.trim().toLowerCase());
 }
 
-function walkOmnirouteStatus(value: unknown, now: number): string | null {
+function walkOmnirouteStatus(
+  value: unknown,
+  now: number,
+  liveModel: string,
+): string | null {
   if (Array.isArray(value)) {
     for (const item of value) {
-      const hit = walkOmnirouteStatus(item, now);
+      const hit = walkOmnirouteStatus(item, now, liveModel);
       if (hit) return hit;
     }
     return null;
@@ -99,7 +109,7 @@ function walkOmnirouteStatus(value: unknown, now: number): string | null {
   }
   if (typeof rec.remainingMs === "number" && rec.remainingMs > 0) {
     if ("model" in rec || "reason" in rec) {
-      if (!("model" in rec) || lockoutTouchesDeepSeek(rec)) {
+      if (!("model" in rec) || lockoutTouchesRoutedModel(rec, liveModel)) {
         return `OmniRoute model lockout has ${rec.remainingMs}ms remaining`;
       }
     }
@@ -109,7 +119,7 @@ function walkOmnirouteStatus(value: unknown, now: number): string | null {
   }
 
   for (const child of Object.values(rec)) {
-    const hit = walkOmnirouteStatus(child, now);
+    const hit = walkOmnirouteStatus(child, now, liveModel);
     if (hit) return hit;
   }
   return null;

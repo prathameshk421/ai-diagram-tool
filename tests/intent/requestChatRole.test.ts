@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FLASH_MODEL, type Command } from "../../src/intent/types";
+import { type Command } from "../../src/intent/types";
 import { SYSTEM_PROMPT } from "../../src/intent/systemPrompt";
 import type { Settings } from "../../src/settings/store";
 
@@ -7,7 +7,7 @@ const keyed: Settings = {
   omnirouteUrl: "http://localhost:20128",
   omnirouteApiKey: "sk_test",
   groqApiKey: "",
-  omnirouteModel: FLASH_MODEL,
+  omnirouteModel: "test/model",
 };
 
 function llmCommand(overrides: Partial<Command> = {}): Command {

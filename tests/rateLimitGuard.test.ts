@@ -47,8 +47,19 @@ describe("live rate-limit budget (from Groq + OmniRoute docs)", () => {
     ).toMatch(/cooling down/);
     expect(
       omnirouteChatBlocked({
-        lockouts: [{ model: "opencode-go/deepseek-v4-flash", remainingMs: 5000 }],
+        lockouts: [{ model: "provider/model-id", remainingMs: 5000 }],
       }),
+    ).toMatch(/lockout/);
+    expect(
+      omnirouteChatBlocked(
+        {
+          lockouts: [
+            { model: "provider/model-id", remainingMs: 5000 },
+          ],
+        },
+        Date.now(),
+        "provider/model-id",
+      ),
     ).toMatch(/lockout/);
     expect(omnirouteChatBlocked({ connections: [{ queued: 12 }] })).toMatch(
       /queue/,

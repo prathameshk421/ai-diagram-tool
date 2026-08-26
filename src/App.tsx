@@ -23,7 +23,6 @@ import { resolveCommand } from "./intent/resolveCommand";
 import { requestIntent } from "./intent/omnirouteClient";
 import { type Command, unknownCommand } from "./intent/types";
 import {
-  DEFAULT_SETTINGS,
   loadSettings,
   saveSettings,
   type Settings,
@@ -66,8 +65,8 @@ function isPipelineRunning(stage: PipelineStage): boolean {
 }
 
 export default function App() {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [draft, setDraft] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<Settings>(() => loadSettings());
+  const [draft, setDraft] = useState<Settings>(() => loadSettings());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [input, setInput] = useState("");
   const [voice, setVoice] = useState<VoiceState>("idle");
@@ -434,8 +433,9 @@ export default function App() {
           draft={draft}
           onChange={setDraft}
           onSave={() => {
-            saveSettings(draft);
-            setSettings(draft);
+            const next = saveSettings(draft);
+            setSettings(next);
+            setDraft(next);
             setDrawerOpen(false);
           }}
           onClose={() => {

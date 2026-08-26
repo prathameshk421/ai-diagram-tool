@@ -1,26 +1,26 @@
 # ai-diagram-tool
 
-Voice-driven **architecture board**: Groq Whisper transcribes; a host pipeline (enhancer → judge → Command JSON **or** build/plan tools) talks to OmniRoute OpenCode Go DeepSeek. `applyEditPlan` writes the `arch-scene/v1` scene; the kernel owns geometry. Humans draw on an SVG board. No keyword table. No Excalidraw. The model never invents coordinates. Verify is scene predicates, not a vision model.
+Voice-driven **architecture board**: Groq Whisper transcribes; a host pipeline (enhancer → judge → Command JSON **or** build/plan tools) talks to OmniRoute. `applyEditPlan` writes the `arch-scene/v1` scene; the kernel owns geometry. Humans draw on an SVG board. No keyword table. No Excalidraw. The model never invents coordinates. Verify is scene predicates, not a vision model.
 
 - Feature contract: [docs/features.md](docs/features.md)
 - Implementation plan (STT/intent): [docs/implementation-plan.md](docs/implementation-plan.md)
 
 **This slice ships:** harness UI + Groq STT + OmniRoute intent + scene kernel + SVG board.
 
-Keys are pasted in Settings. No env-key fallback. No Web Speech. Thinking is off. Every diagram command hits the LLM. Undo is a host snapshot.
+Keys are pasted in Settings. Model id is `OMNIROUTE_MODEL` in `.env`. No env-key fallback. No Web Speech. Thinking is off. Every diagram command hits the LLM. Undo is a host snapshot.
 
 ## Run
 
 ```bash
 npm install
 npm test          # unit tests; no API keys
-npm run test:live # requires GROQ_API_KEY and OMNIROUTE_API_KEY
+npm run test:live # requires GROQ_API_KEY, OMNIROUTE_API_KEY, OMNIROUTE_MODEL
 npm run dev
 ```
 
 `npm run test:live` probes Groq `/openai/v1/models` and OmniRoute `/api/rate-limits` first, then makes **one** Whisper request and **one** chat completion. It does not retry HTTP 429.
 
-Open `http://localhost:5173`. Paste Groq + OmniRoute keys in Settings. Draw a box or use the demo API→Postgres board. Type `align left` (with a selection) to see Command JSON from DeepSeek applied as pins.
+Open `http://localhost:5173`. Paste Groq + OmniRoute keys in Settings. Draw a box or use the demo API→Postgres board. Type `align left` (with a selection) to see Command JSON applied as pins.
 
 ## Settings
 
@@ -29,9 +29,8 @@ Open `http://localhost:5173`. Paste Groq + OmniRoute keys in Settings. Draw a bo
 | OmniRoute URL | `http://localhost:20128` |
 | OmniRoute API key | empty |
 | Groq API key | empty |
-| LLM model | DeepSeek Flash (`opencode-go/deepseek-v4-flash`) |
 
-Wire OpenCode Go DeepSeek in the OmniRoute dashboard. This app does not install OpenCode.
+Model id is `OMNIROUTE_MODEL` in `.env` (no Settings picker). Wire that model in the OmniRoute dashboard.
 
 ## curl
 

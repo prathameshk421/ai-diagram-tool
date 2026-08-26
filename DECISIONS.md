@@ -2,6 +2,10 @@
 
 **This file is for the agent.** Record why a stack, library, test, or design was chosen. Add a section whenever you decide something non-obvious.
 
+## Model id is OMNIROUTE_MODEL from .env; Settings has no picker
+
+The intent `model` field is `OMNIROUTE_MODEL` only — a provider/model id, not a vendor brand in Settings. Vite inlines it at dev/build (`import.meta.env.OMNIROUTE_MODEL`). Live tests require the same env var. The proxy still must not read API keys from `process.env`. Stale `omnirouteModel` in localStorage is ignored.
+
 ## Talk and type-in share submitTranscript; Use selection is App chrome
 
 Talk after a successful STT must not call `executePipeline` directly. `runPipeline` treats `hostUndoKind` as a host skip and returns unknown without restoring SceneHistory — that is why spoken “undo” was a no-op. Both Talk and type-in go through `submitTranscript` (`runText`). `finishRecording` holds `busyRef` only during transcribe, then releases it before submit so the pipeline lock is not double-held.
@@ -121,8 +125,8 @@ Unique `label`/`icon` (case-insensitive), else `selection` / `lastDrawn`, else `
 | Scene | `src/scene/` TypeScript kernel | Closed schema; tests without a browser |
 | Board | Custom SVG | Excalidraw JSON must not enter the model |
 | STT | Groq `whisper-large-v3-turbo` | Hosted Whisper; filename must have an extension; `verbose_json` |
-| Intent | OmniRoute DeepSeek Flash (Pro via Settings) on every command | No keyword/regex table; `"thinking": { "type": "disabled" }` |
-| Keys | Settings / `localStorage` | Proxy must not read `process.env` |
+| Intent | OmniRoute on every command; model id from `.env` | No keyword/regex table; `"thinking": { "type": "disabled" }` |
+| Keys | Settings / `localStorage` | Proxy must not read API keys from `process.env` |
 | Tests | Vitest mocks + optional `npm run test:live` | Unit tests need no keys; live tests require keys and refuse 429 retries |
 
 ## What `frontend/`, `backend/`, `firebase/` are
@@ -136,4 +140,4 @@ No vision, OCR, color targeting, text-to-diagram from a paragraph or photo, dupl
 ## Tests
 
 - `npm test`: mocks only; no Groq/OmniRoute network. Includes `tests/scene` contract tests.
-- `npm run test:live`: requires `GROQ_API_KEY` (must start with `gsk_`) and `OMNIROUTE_API_KEY`. Probe rate-limit endpoints first. At most one Whisper call and one chat completion. Do not retry 429.
+- `npm run test:live`: requires `GROQ_API_KEY` (must start with `gsk_`), `OMNIROUTE_API_KEY`, and `OMNIROUTE_MODEL`. Optional `OMNIROUTE_URL` (default `http://localhost:20128`). Probe rate-limit endpoints first. At most one Whisper call and one chat completion. Do not retry 429. The app uses the same `OMNIROUTE_MODEL`; Settings has no model picker. The proxy must not read API keys from `process.env`.

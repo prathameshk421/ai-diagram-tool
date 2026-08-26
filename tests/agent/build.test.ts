@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EnhancerOutput } from "../../src/agent/pipeline/session";
-import { FLASH_MODEL, unknownCommand } from "../../src/intent/types";
+import { unknownCommand } from "../../src/intent/types";
 import type { Settings } from "../../src/settings/store";
 import { apiDbScene } from "../scene/fixtures";
 
@@ -8,7 +8,7 @@ const keyed: Settings = {
   omnirouteUrl: "http://localhost:20128",
   omnirouteApiKey: "sk_test",
   groqApiKey: "",
-  omnirouteModel: FLASH_MODEL,
+  omnirouteModel: "test/model",
 };
 
 const readyInsert: Extract<EnhancerOutput, { status: "ready" }> = {

@@ -2,6 +2,10 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Model id is OMNIROUTE_MODEL; Settings has no picker
+
+- Removed the Settings Flash/Pro select. Intent `model` is `OMNIROUTE_MODEL` from `.env` (Vite inlines it; live tests require it). Keys and OmniRoute URL stay in Settings. Proxy still does not read API keys from `process.env`. Stale stored `omnirouteModel` is ignored.
+
 ## 2026-08-26 — Spoken undo + ClarifyPanel Use selection
 
 - Talk after STT now shares type-in’s `submitTranscript` (`runText`): `hostUndoKind` restores SceneHistory instead of hitting `runPipeline` (which returns unknown and does not write). `finishRecording` releases `busyRef` after transcribe so the pipeline lock is not double-held. While asking, Talk still submits (pending via `executePipeline`); undo while asking still restores.
@@ -105,7 +109,7 @@ Newest first. **This file is for the agent.** Append an entry on every repo chan
 
 ## 2026-08-26 — Pure AI intent (no keyword table)
 
-- Deleted `keywordParser`. Every typed or spoken command goes to OmniRoute DeepSeek.
+- Deleted `keywordParser`. Every typed or spoken command goes to OmniRoute.
 - Missing OmniRoute URL/key → toast, no regex fallback.
 - Type-in now needs an OmniRoute key, same as paraphrases.
 

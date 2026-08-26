@@ -14,8 +14,8 @@ Browser  :5173  →  Vite (repo root)
 ```
 
 1. `npm install && npm run dev` at the **repo root** — current app.
-2. Paste Groq and OmniRoute keys in Settings (not `.env` for the proxy).
-3. Optional: `npm run test:live` with `GROQ_API_KEY` and `OMNIROUTE_API_KEY` in the test-runner env.
+2. Paste Groq and OmniRoute keys in Settings (not `.env` for the proxy). Model id is `OMNIROUTE_MODEL` in `.env`.
+3. Optional: `npm run test:live` with `GROQ_API_KEY`, `OMNIROUTE_API_KEY`, and `OMNIROUTE_MODEL` in the test-runner env.
 
 `frontend/` Vite (also :5173) and FastAPI :8000 are a later-layout sketch from `main`. Do not use them for this slice.
 

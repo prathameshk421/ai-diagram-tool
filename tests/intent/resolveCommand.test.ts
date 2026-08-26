@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveCommand } from "../../src/intent/resolveCommand";
-import { FLASH_MODEL, PRO_MODEL, type Command } from "../../src/intent/types";
+import { type Command } from "../../src/intent/types";
 import { SYSTEM_PROMPT } from "../../src/intent/systemPrompt";
 import type { Settings } from "../../src/settings/store";
 
@@ -8,7 +8,7 @@ const keyed: Settings = {
   omnirouteUrl: "http://localhost:20128",
   omnirouteApiKey: "sk_test",
   groqApiKey: "",
-  omnirouteModel: FLASH_MODEL,
+  omnirouteModel: "test/model",
 };
 
 const emptyKeys: Settings = {
@@ -120,7 +120,7 @@ describe("requestIntent payload", () => {
       "http://localhost:20128",
     );
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
-    expect(body.model).toBe("opencode-go/deepseek-v4-flash");
+    expect(body.model).toBe("test/model");
     expect(body.thinking).toEqual({ type: "disabled" });
     expect(JSON.stringify(body)).not.toMatch(/"thinking":false/);
     expect(body.response_format).toBeUndefined();
@@ -141,7 +141,7 @@ describe("requestIntent payload", () => {
     );
   });
 
-  it("Pro override changes model only; thinking stays disabled", async () => {
+  it("forwards settings.omnirouteModel as-is; thinking stays disabled", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -159,7 +159,7 @@ describe("requestIntent payload", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { requestIntent } = await import("../../src/intent/omnirouteClient");
     await requestIntent(
-      { ...keyed, omnirouteModel: PRO_MODEL },
+      { ...keyed, omnirouteModel: "other/model" },
       "clean this up",
       1,
     );
@@ -167,7 +167,7 @@ describe("requestIntent payload", () => {
       string,
       unknown
     >;
-    expect(body.model).toBe("opencode-go/deepseek-v4-pro");
+    expect(body.model).toBe("other/model");
     expect(body.thinking).toEqual({ type: "disabled" });
     expect(JSON.stringify(body)).not.toMatch(/"thinking":false/);
   });

@@ -141,7 +141,7 @@ describe("proxy auth (no live APIs)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const payload = {
-      model: "opencode-go/deepseek-v4-flash",
+      model: "test/model",
       thinking: { type: "disabled" },
     };
     const res = makeRes();

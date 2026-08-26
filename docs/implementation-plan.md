@@ -1,6 +1,6 @@
 # Agent-path implementation plan
 
-Voice → Groq Whisper → structured `Command` JSON. OmniRoute OpenCode Go DeepSeek interprets **every** command. **No keyword table. No drawing surface in this slice.**
+Voice → Groq Whisper → structured `Command` JSON. OmniRoute interprets **every** command. **No keyword table. No drawing surface in this slice.**
 
 **Verdict: FULL GO** for the agent path. Canvas, geometry, and scene mutation are a later harness: agents will call tools against an agent-optimized scene model, not a raw editor dump. This file freezes the Command contract those tools will use.
 
@@ -11,8 +11,8 @@ A junior engineer should be able to implement this file top-to-bottom without in
 ## Locked (do not reopen)
 
 1. `"thinking": { "type": "disabled" }` on every intent body. Never `thinking: false`. HTTP 400 → omit `thinking` once. No other retries.
-2. Model UI is a Flash / Pro `<select>`. DeepSeek Flash → `opencode-go/deepseek-v4-flash`; DeepSeek Pro → `opencode-go/deepseek-v4-pro`.
-3. Default model is flash. Pro changes `model` only.
+2. Model id is `OMNIROUTE_MODEL` from `.env`. No Settings model picker.
+3. Settings stores keys and OmniRoute URL only. The intent body `model` field is the env id.
 4. Pure AI. Voice and type-in call `resolveCommand`, which always POSTs `/api/intent` when OmniRoute URL+key are set. No keyword/regex shortcut. Missing keys → toast.
 5. Same-origin Vite proxy only. No Web Speech. No env-key fallback.
 6. This PR ships STT + LLM + harness preview. It does **not** ship a board, geometry, or scene persist.
@@ -23,7 +23,7 @@ A junior engineer should be able to implement this file top-to-bottom without in
 11. Settings persist `localStorage` key `ai-diagram-tool:settings` only.
 12. Groq/OmniRoute down = toast + unknown. Do not cut STT/LLM code. Do not add a keyword floor.
 13. Invalid LLM / coords / `confidence < 0.45` → unknown. Parse `choices[0].message.content` only.
-14. We do **not** ship OpenCode. User wires OpenCode Go DeepSeek in the OmniRoute dashboard.
+14. We do **not** ship a model vendor CLI. User wires `OMNIROUTE_MODEL` in the OmniRoute dashboard.
 15. English only. Command ops: perfect, align, distribute, snap, bigger, smaller, equalize, connect, rotate, unknown.
 
 ---
@@ -129,9 +129,10 @@ Scripts: `"dev": "vite"`, `"build": "tsc -b && vite build"`, `"preview": "vite p
 | `omnirouteUrl` | `http://localhost:20128` | OmniRoute URL |
 | `omnirouteApiKey` | `""` | OmniRoute API key |
 | `groqApiKey` | `""` | Groq API key |
-| `omnirouteModel` | `opencode-go/deepseek-v4-flash` | `<select>` Flash / Pro |
 
-Help: *Keys stay in this browser. Configure OpenCode Go DeepSeek in the OmniRoute dashboard. This app does not install OpenCode. To use Pro, pick DeepSeek Pro after that model is wired in OmniRoute.*
+`omnirouteModel` is not a Settings field. It is `OMNIROUTE_MODEL` from `.env` (Vite inlines it; live tests read it).
+
+Help: *Keys stay in this browser. The model id is OMNIROUTE_MODEL in .env.*
 
 Save writes and closes. Close discards. Empty keys must Save.
 
@@ -162,7 +163,7 @@ Headers: `Authorization: Bearer <omnirouteApiKey>`, `X-OmniRoute-Base: http://lo
 
 ```json
 {
-  "model": "opencode-go/deepseek-v4-flash",
+  "model": "<OMNIROUTE_MODEL>",
   "temperature": 0,
   "stream": false,
   "max_tokens": 200,
