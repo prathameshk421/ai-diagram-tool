@@ -1,210 +1,204 @@
 # Features
 
-Proposed v1 for a **voice-driven AI diagramming assistant on Excalidraw**: you hand-draw a rough software/system diagram, **select** the element(s), then say (or click) an operation. The AI never guesses which shape you mean. Geometry is deterministic code, not a vision model.
+v1 for a **voice-driven diagramming assistant on Excalidraw**: you sketch a software architecture diagram, **select** the element(s), then say or click an operation. Only the selection changes. Geometry is math, not a vision model.
 
-This file is the feature contract. Items marked **Confirm** are proposed defaults from the original brief and later research — push back before we implement.
+This file is the feature contract after the first review pass. Open items are called out at the bottom.
 
 ---
 
-## 1. Product in one paragraph
+## 1. Product
 
-A thin layer on top of the Excalidraw canvas. The user sketches freely (including messy freehand). They click/tap to select one or more elements. They issue a short command — voice or a toolbar button — from a **small fixed operation set**. The tool mutates **only the selection** (or inserts relative to it). Undo is native Excalidraw history.
+A thin layer on the Excalidraw canvas. Sketch freely (including messy freehand). Click to select. Issue a short command — voice or a toolbar button — from a small fixed set. Undo is native Excalidraw history.
 
-**Domain (Confirm):** software / system architecture diagrams (system design, AI/ML pipelines, cloud infra) — not building/floor-plan architecture.
+**Domain (locked):** architectural diagrams **for software people** — system design, AI/ML pipelines, cloud infra. Not buildings or floor plans.
+
+**Stack (locked):** local-only Excalidraw page. No accounts, no backend, no hosted APIs in v1. Scene stays in the browser.
 
 ---
 
 ## 2. What this is not
 
-These already exist; we are not competing with them as the core loop:
-
-| Existing class | Examples | Why it is a different product |
+| Existing class | Examples | Different because |
 |---|---|---|
-| Voice → whole diagram | YapDraw, Drawmaid, VoiceBoard | Model regenerates or patches a **graph**, not the selected stroke |
-| Text-to-diagram / MCP agents | Excalidraw MCP, next-ai-draw-io, Sketchi | Agent infers targets from a lossy scene summary |
-| Auto ink-to-shape on pen-up | Excalidraw draw-to-shape, Desert-Ant `shapes` | Converts **as you draw**, not “perfect **this** selected thing” |
-| Cloud vendor icon packs | Azure/GCP Excalidraw libs, Lobe brand logos | Product/service logos, not RAG-pipeline primitives |
+| Voice → whole diagram | YapDraw, Drawmaid | Regenerates a graph; does not edit the selected stroke |
+| Text-to-diagram agents | Excalidraw MCP, next-ai-draw-io | Agent guesses the target from a summary |
+| Auto ink-to-shape on pen-up | Excalidraw draw-to-shape | Converts as you draw, not “perfect **this** selected thing” |
+| Two-way talking companion | [Rumik](https://rumik.ai) / Ira | Always-on conversation; the product *talks back* (see § Voice research) |
 
-The gap we are filling: **deictic targeting (selection) + lightweight intent + math**, because “change this particular thing” fails when the agent only has a screenshot or a node-label graph.
+The gap: **you point by selecting**, then a tiny intent layer runs **deterministic** geometry. “Change this particular thing” fails in agents that only see a screenshot or node labels.
 
 ---
 
-## 3. Locked architecture decisions
+## 3. Locked architecture
 
-Do not reopen these unless we explicitly decide to:
-
-1. **Target = current selection**, not on-canvas numbering. Numbering is a possible later hands-free fallback, not v1.
-2. **No vision model for shape correction.** Selected freehand `points[]` come from Excalidraw JSON; fitting is least-squares / RDP-style geometry.
-3. **LLM (if any) only maps utterance → operation.** It does not invent coordinates, radii, or layouts.
+1. **Target = current selection.** No numbering in v1. No “the blue box on the left.”
+2. **No vision model** for shape correction. Fit the selected freehand `points[]` from Excalidraw JSON.
+3. **No LLM inventing coordinates.** Keywords map speech → operation; code does the math.
 4. **Embed Excalidraw’s React component.** Do not fork the editor.
-5. **Voice is optional.** Every voice command has a visible button / shortcut so the demo works without a mic.
-6. **Always demoable.** Ship selection + perfect-shape before voice; ship voice before the icon library.
+5. **Voice is optional.** Every command has a button so the demo works without a mic.
+6. **Always demoable.** Perfect-shape first, then voice, then (later) icons.
 
 ---
 
 ## 4. v1 features
 
-Priority is the order we should be able to demo.
-
 ### F1 — Excalidraw canvas
 
-- Full Excalidraw editor: draw, select, pan, zoom, undo/redo, export.
-- App chrome around it: toolbar for our operations, selection count, last command, voice status.
-- Persist scene in the browser (localStorage or IndexedDB) so a refresh does not wipe the demo.
-
-**Confirm:** local-only for v1 (no accounts, no backend required).
+- Full editor: draw, select, pan, zoom, undo/redo, export.
+- Chrome: toolbar, selection count, last command, voice status.
+- Persist locally (localStorage or IndexedDB).
 
 ### F2 — Selection is the only target
 
-- Operations run on `selectedElementIds` from Excalidraw app state.
-- If nothing is selected, the command is refused with a clear message (“Select a shape first”).
-- Multi-select is first-class for group ops (align, distribute, connect, equalize size).
-- We do **not** parse “the blue box on the left” or send the whole scene to a model to find the target.
-
-**Confirm:** if the user speaks while drawing (no selection), we still refuse rather than guessing.
+- Operations use whatever is selected right now.
+- **Nothing selected → refuse** (“Select a shape first”). Do not guess. Hands-free targeting can come later.
+- Multi-select is required for align / distribute / connect / equalize.
 
 ### F3 — Perfect shape (core wow)
 
-On the **selected** freehand stroke(s):
+Selected freehand stroke(s) become a real Excalidraw shape:
 
-| Detected intent | Replacement |
+| The ink looks like | It becomes |
 |---|---|
-| Closed round stroke | Ellipse / circle (least-squares fit) |
-| Closed boxy stroke | Rectangle (axis-aligned; optional slight rotation if clearly rotated) |
-| Closed diamond-ish | Diamond |
-| Open nearly-straight | Line |
-| Ambiguous / scribble | Leave as-is and say we could not snap it |
+| Closed and round | Circle / ellipse |
+| Closed and boxy | Rectangle |
+| Closed and diamond-ish | Diamond |
+| Open and almost straight | Line |
+| Scribble | Unchanged + “couldn’t snap that” |
 
-Rules:
+Preserve color, width, fill, roughness. One undo restores the ink.
 
-- Preserve stroke color, width, fill, roughness, opacity from the original.
-- Replace the freedraw with a real Excalidraw element (not a smoothed polyline pretending to be a circle).
-- Keep the new element selected; one undo step restores the ink.
-- If the selection is already a rectangle/ellipse/etc., “perfect” tightens it (e.g. ellipse → circle by equalizing axes, rectangle → snapped 90°).
+**How “perfect” picks the shape (plain English):**  
+You do not have to name the shape. We look at the points and guess.  
+If you *do* name it — “perfect this **circle**” — we force a circle even if the ink was a bit oval. That is the override.
 
-**Confirm:** auto-detect the primitive from the points. A spoken type (“perfect this **circle**”) overrides detection when present.
+### F4 — Layout ops on the selection
 
-### F4 — Layout operations on the selection
-
-All of these ignore unselected elements.
+Unselected elements never move.
 
 | Operation | 1 selected | 2+ selected |
 |---|---|---|
-| Align left / right / top / bottom / center H / center V | no-op + hint | align to selection bounds |
-| Distribute H / V | no-op + hint | even spacing |
-| Snap to grid | snap each | snap each |
-| Make bigger / smaller | scale about center | scale each about own center (or group bbox — **Confirm**) |
-| Equalize width / height | no-op | match to largest (or first selected — **Confirm**) |
-| Connect | no-op | arrow from first to second (and chain if 3+) |
+| Align left / right / top / bottom / centers | hint: need 2+ | align |
+| Distribute H / V | hint: need 2+ | even gaps |
+| Snap to grid | snap it | snap each |
+| Bigger / smaller | grow/shrink in place | **each box grows around its own center** (see plain English below) |
+| Equalize size | hint: need 2+ | **stretch to the largest** selected box |
+| Connect | hint: need 2+ | arrow first → second (chain if 3+) |
 | Rotate 90° | rotate | rotate each |
 
-Use Excalidraw’s existing align/distribute where we can; wrap them so voice/buttons call the same code path.
+**v1 keeps this full list** (including rotate and equalize). We are not cutting them unless the demo feels crowded later.
 
-### F5 — Voice layer
+**Bigger/smaller with several boxes (plain English):**  
+Imagine three servers side by side. “Make bigger” should make **each** box larger where it already sits. They should not fly outward as one blob. (The other option — scale the whole cluster from the middle — we are **not** doing in v1.)
 
-- Push-to-talk (hold or toggle) using the **browser Web Speech API** (Chrome). No Whisper server in v1.
-- Transcript shown in the chrome; then a **keyword / small rule classifier** maps it to one operation in §5.
-- Unknown utterance → “Didn’t catch a command” + list of examples. Do not call a large LLM in v1.
-- Mic denied / unsupported browser → voice disabled, buttons still work.
+**Equalize (plain English):**  
+You selected a big box and a small box. “Make these the same size” → the small one grows to match the **biggest** one. We do not use “whichever you clicked first,” because that is easy to get wrong.
 
-**Confirm:** Web Speech + rules for v1, not Whisper and not an LLM classifier.
+### F5 — Voice (v1)
 
-### F6 — Non-voice controls
+- Push-to-talk (hold or toggle).
+- Browser **Web Speech API** (Chrome). No Whisper server, no Rumik/Silk, no LLM.
+- Show the transcript, map keywords to one operation.
+- Unknown phrase → “Didn’t catch that” + examples.
+- No mic → buttons still work.
 
-Same operations as voice, so the product is usable and demoable without a microphone:
+### F6 — Buttons / type-in
 
-- Toolbar buttons: Perfect, Align (menu), Distribute, Snap, Bigger, Smaller, Connect.
-- Keyboard shortcuts where they do not collide with Excalidraw (document them).
-- Optional text field: type `perfect` / `align left` and Enter.
+Same ops as voice: Perfect, Align, Distribute, Snap, Bigger, Smaller, Connect, Rotate. Optional text field (`perfect`, `align left`).
 
-### F7 — Feedback and safety
+### F7 — Safety
 
-- Toast: what ran (“Perfected 1 stroke → ellipse”) or why it didn’t.
-- All mutations go through Excalidraw history (`CaptureUpdateAction.IMMEDIATELY`) so Cmd/Ctrl+Z works.
-- Never delete the rest of the diagram. Never relayout unselected nodes.
+- Toast: what ran, or why it didn’t.
+- Mutations go through Excalidraw undo.
+- Never rewrite the rest of the diagram.
 
 ---
 
-## 5. v1 command phrases
+## 5. v1 phrases (English only)
 
-Classifier is English-only in v1. Matching is on the transcript after lowercase + filler-word strip (`um`, `please`, `this`, `these`).
-
-| Operation | Example phrases |
+| Operation | You can say |
 |---|---|
-| Perfect | “perfect this”, “perfect this circle”, “clean this up”, “make this a rectangle”, “snap to shape” |
-| Align | “align left/right/top/bottom”, “align these”, “center these horizontally” |
+| Perfect | “perfect this”, “perfect this circle”, “clean this up”, “make this a rectangle” |
+| Align | “align left”, “align these”, “center these horizontally” |
 | Distribute | “distribute horizontally”, “space these evenly” |
-| Snap to grid | “snap to grid”, “snap these” |
-| Resize | “make this bigger”, “smaller”, “scale up” |
+| Snap | “snap to grid” |
+| Resize | “make this bigger”, “smaller” |
 | Equalize | “make these the same size”, “same width” |
-| Connect | “connect these”, “draw an arrow between them” |
+| Connect | “connect these” |
 | Rotate | “rotate”, “rotate 90” |
 
-**Confirm:** this set is enough for v1. Drop rotate/equalize if we want a tighter demo.
-
 ---
 
-## 6. Explicitly out of v1
+## 6. Out of v1
 
-- Generating a whole architecture from a prompt or a long voice monologue (YapDraw-style).
-- Vision / screenshot-to-diagram / “make this sketch pretty” via a multimodal model.
-- Conversational agent that talks back, barge-in, or interviews you.
-- Numbering shapes on the canvas for fully hands-free targeting.
-- Collaborative multiplayer.
-- Accounts, cloud sync, hosted STT (Whisper/Deepgram).
-- Integrating Excalidraw’s official text-to-diagram AI as a second mode.
-- Custom AI/ML icon library (see §8) — **does not block v1**.
-- Insert-symbol-by-voice until the library exists.
+- Whole-diagram generation from a speech dump (YapDraw).
+- **No text-to-diagram** panel or mode.
+- Vision / “pretty up this sketch” with a multimodal model.
+- Two-way talking companion (Rumik/Ira style) — see below.
+- Numbered shapes for fully hands-free targeting.
+- Multiplayer, accounts, cloud sync, hosted STT/TTS.
+- **Icon library** (explained below) and insert-symbol-by-voice.
 - Non-English commands.
 
 ---
 
-## 7. Later (not v1, keep on the radar)
+## 7. Icon library — what that means
 
-- Hands-free fallback: overlay numbers on visible elements; “perfect number 3”.
-- Whisper tiny/small if Web Speech quality is poor.
-- Tiny LLM/classifier only if keyword matching is too brittle.
-- Insert RAG/LLM symbols from a custom `.excalidrawlib`.
-- Optional complementary “generate diagram from text” mode, kept strictly separate from selection-edit.
-- Group-aware perfect (several scribbles → several shapes in one command) — v1 already allows multi-select if each item is its own freedraw.
+Not a settings “library.” It is a **sticker pack of architecture symbols** you drag onto the canvas (Excalidraw `.excalidrawlib` file).
 
----
+The original idea: symbols software people actually need for AI/ML diagrams — LLM block, vector database, embedding, retriever, reranker, agent orchestrator — because public packs are mostly AWS/GCP/Azure logos.
 
-## 8. Icon library (deferred, independently useful)
-
-Research finding: no public Excalidraw pack whose vocabulary is **LLM block, vector DB, embedding, retriever, reranker, RAG pipeline, agent orchestrator**. Cloud packs are Azure/GCP/AWS service logos; Lobe/simple-icons are brand marks.
-
-When we do this (after F1–F7):
-
-- Hand-drawn Excalidraw aesthetic (not official SVG dumps).
-- Ship as a `.excalidrawlib` that also works in vanilla excalidraw.com.
-- Suggested v1 symbol list (Confirm count/style later): LLM, embedding model, vector DB, retriever, reranker, prompt cache, agent, tool/function, memory, RAG pipeline (composed), orchestrator, eval/guardrail.
+**Locked: out of v1.** Perfect + voice first. The pack can be added later without changing the editor.
 
 ---
 
-## 9. Demo script (v1 done when this works)
+## 8. Voice research: rumik.ai (and roommate.ai)
 
-1. Draw a sloppy circle and two sloppy boxes with the freedraw tool.
-2. Select the circle → click **Perfect** (or say “perfect this circle”) → clean ellipse/circle, ink gone, undo restores ink.
-3. Select the two boxes → **Align left** / “align these left”.
-4. Select both boxes → **Connect** / “connect these”.
-5. With no selection, say “perfect this” → refused, nothing else on the canvas moves.
+**[rumik.ai](https://rumik.ai)** (likely what “remuk.ai” referred to) is a voice lab, not a diagram tool.
+
+- **Silk** — text-to-speech: the *agent speaks* (expressive, Hinglish, ~150–300 ms, barge-in / interrupt).
+- **Ira** — companion app: you talk, she talks back, remembers context, voice notes and calls. Always-on conversation, not “hold mic → one command.”
+- Their SDK is built for **full-duplex voice agents** (listen while speaking, interrupt mid-sentence).
+
+**roommate.ai** did not load (the site returned an error). There is no public diagram product at that URL. Rumik’s Ira is the “AI roommate / companion” in that family.
+
+**What is actually new there:** two-way, interruptible, low-latency *talking*, not better speech-to-text for commands.
+
+**What we do with that:**
+
+| v1 (locked, matches local-only) | Later (if we want Rumik-like) |
+|---|---|
+| You hold a button, say “align left”, canvas changes, tool stays quiet | Always listening; tool might say “aligned three boxes”; you can interrupt it |
+| Web Speech in the browser, no API key | Hosted TTS (Silk) + a backend — **breaks local-only** |
+
+v1 stays command-style on purpose. Companion voice is a later product decision, not a v1 dependency.
 
 ---
 
-## 10. Confirm with you
+## 9. Demo (v1 is done when this works)
 
-Please yes/no (or edit) these before implementation:
+1. Draw a sloppy circle and two sloppy boxes.
+2. Select the circle → **Perfect** or “perfect this” → clean ellipse; undo restores ink.
+3. Select the two boxes → **Align left** / “align these left.”
+4. Select both → **Connect** / “connect these.”
+5. Nothing selected + “perfect this” → refused; the rest of the board does not move.
 
-1. **Domain** is software/system architecture, not buildings.
-2. **v1 stack:** Excalidraw React embed, local-only, Web Speech API, keyword intent, no backend.
-3. **v1 ops:** perfect, align, distribute, snap-to-grid, bigger/smaller, equalize, connect, rotate. (Any to cut?)
-4. **Perfect** auto-detects the primitive; spoken type overrides.
-5. **No selection ⇒ refuse**, never guess.
-6. **Multi-select scale** about each element’s center vs the group bounding box.
-7. **Equalize** to the largest selected element vs the first selected.
-8. **Icon library and insert-symbol** stay out of v1.
-9. **No text-to-diagram mode** in v1 (even as a side panel).
-10. **English-only** commands in v1.
+---
 
-Once these are locked, this file becomes the implementation checklist.
+## 10. Decision log
+
+| # | Topic | Decision |
+|---|---|---|
+| 1 | Domain | Software architecture diagrams |
+| 2 | Stack | Local-only Excalidraw page; Web Speech; keywords; no backend |
+| 3 | Command list | Keep the full list, including rotate and equalize |
+| 4 | Perfect | Auto-detect the shape from the ink; if you name a type, that wins |
+| 5 | No selection | Refuse. Guessing later. |
+| 6 | Multi-select bigger/smaller | Each shape scales around **its own center** |
+| 7 | Equalize | Match the **largest** selected shape |
+| 8 | Icon library | Explained; stays out of v1 |
+| 9 | Text-to-diagram | No |
+| 10 | Language | English only |
+| — | Rumik/Ira voice | Research only for v1; two-way TTS needs a server |
+
+No remaining yes/no blockers for v1 implementation unless you want to change 6 or 7 after the examples above.
