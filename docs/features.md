@@ -98,7 +98,6 @@ When a canvas exists:
 - Keep an agent-optimized scene (nodes, edges, constraints) rather than dumping editor internals into the model.
 - Selection comes from that canvas; this slice’s `selectionCount` stub goes away.
 - Geometry stays in code. The model still must not emit coordinates.
-- Research and DIY scene math (not shipped): `docs/canvas-agent-research.md`.
 
 ---
 
@@ -128,4 +127,4 @@ When a canvas exists:
 | 17 | Default model | Flash. Settings select Pro |
 | 18 | No Web Speech | Groq fail → toast |
 | 19 | Talk | Click-to-toggle only. 300ms–15s |
-| 20 | Scene for agents | Future agent-optimized graph, not a raw editor dump. See `docs/canvas-agent-research.md`. |
+| 20 | Scene for agents | Future agent-optimized graph, not a raw editor dump |

@@ -2,12 +2,6 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
-## 2026-08-26 — Canvas research (agent-optimized scene)
-
-- Added `docs/canvas-agent-research.md`: papers and a DIY map for a later canvas.
-- Recommended split: logical graph + constraints + solved AABBs; LLM keeps Command ops, code does the math.
-- No board, geometry, or scene persist shipped. Pointers in `AGENTS.md`, `DECISIONS.md`, `docs/features.md` §7, README.
-
 ## 2026-08-26 — Pure AI intent (no keyword table)
 
 - Deleted `keywordParser`. Every typed or spoken command goes to OmniRoute DeepSeek.

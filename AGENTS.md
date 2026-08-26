@@ -12,7 +12,6 @@ These repo-root files exist **so the agent can keep the project understandable**
 | `FLOW.md` | **Agent, whenever wiring changes** | How the harness, proxies, and APIs talk |
 | `docs/features.md` | Agent only with an explicit product change | Feature contract. Do not contradict it silently |
 | `docs/implementation-plan.md` | Agent only when the user asks to edit the plan | Locked agent-path plan |
-| `docs/canvas-agent-research.md` | Agent, when the canvas/scene design changes | Papers + DIY map for the later agent canvas. Not a feature lock. |
 
 If you edited code and skipped `CHANGELOG.md`, the change is incomplete. If you picked a provider, model, or key path and skipped `DECISIONS.md`, the change is incomplete. If you changed a route or how the UI talks to Groq/OmniRoute and skipped `FLOW.md`, the change is incomplete.
 
@@ -20,7 +19,7 @@ If you edited code and skipped `CHANGELOG.md`, the change is incomplete. If you 
 
 Voice-driven **agent path** for software architecture diagrams. Speak or type a short command. Groq Whisper transcribes. OmniRoute OpenCode Go DeepSeek always interprets the text (no keyword table). Output is closed **Command JSON**. There is **no drawing surface** in this slice.
 
-A later canvas will bind the same Command ops as tools against an agent-optimized scene. That canvas is not this PR. Map for how to build it: `docs/canvas-agent-research.md` (geometry in code, compact graph for the model, no editor dump).
+A later canvas will bind the same Command ops as tools against an agent-optimized scene. That canvas is not this PR.
 
 ## Stack
 
@@ -52,7 +51,7 @@ A later canvas will bind the same Command ops as tools against an agent-optimize
 src/          Harness UI + STT + intent (the current app)
 server/       Same-origin Groq + OmniRoute proxy
 tests/        Vitest (mock) + tests/live (requires keys)
-docs/         Feature contract + implementation plan + canvas research
+docs/         Feature contract + implementation plan
 frontend/     Later canvas sketch from main — not this slice
 backend/      FastAPI health from main — not this slice
 firebase/     Hosting/rules sketch from main — not this slice
