@@ -2,6 +2,20 @@
 
 **This file is for the agent.** Record why a stack, library, test, or design was chosen. Add a section whenever you decide something non-obvious.
 
+## Pipeline roles are injectable; production is passthrough + OmniRoute command
+
+`runPipeline` takes `PipelineDeps` so tests mock enhance/judge/requestCommand/build. Production App does **not** parse enhancer/judge JSON yet (Task 4). It injects:
+
+- enhance → `{ status: "ready", summary: transcript, targetQueries: [] }`
+- judge → `{ route: "command", reason: "default" }`
+- requestCommand → `resolveCommand(..., requestIntent)` so align left still hits OmniRoute once
+
+If `enhance.command` is a valid Command (`confidence >= 0.45`, `op !== unknown`), the host overlays `route: "command"` and **does not** call `requestCommand` (simple path can finish in 1 call). Tests of the command path mock that. The live app passthrough does not set `command`, so OmniRoute still runs.
+
+Hard LLM cap is `TURN_CAPS.maxLlmCallsComplex` (5). `maxLlmCallsSimple` (2) is the command-path budget when overlay skips judge/requestCommand. Hash gating uses `getLiveHash` / `liveHash` / `nowHash` against the start snapshot so a human draw during the run cancels the write.
+
+Asks are a `PendingAsk` + `ClarifyPanel`, not toast-only. `applyTurn.ask` without pending still toasts (host color/split).
+
 ## Per-role OmniRoute budgets
 
 Client timeout and `max_tokens` live in `ROLE_BUDGETS` keyed by `ChatRole`. Fast Command stays **4s / 200**. Enhancer/judge/plan/review/build do not inherit that global cap. Turn caps (`TURN_CAPS`) are constants for a later orchestrator; this slice only ships the numbers.

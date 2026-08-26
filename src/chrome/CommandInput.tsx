@@ -2,14 +2,24 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  mode?: "command" | "answer";
+  disabled?: boolean;
 };
 
-export function CommandInput({ value, onChange, onSubmit }: Props) {
+export function CommandInput({
+  value,
+  onChange,
+  onSubmit,
+  mode = "command",
+  disabled = false,
+}: Props) {
+  const answer = mode === "answer";
   return (
     <form
       className="command-input"
       onSubmit={(event) => {
         event.preventDefault();
+        if (disabled) return;
         onSubmit();
       }}
     >
@@ -17,10 +27,17 @@ export function CommandInput({ value, onChange, onSubmit }: Props) {
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="Type a command (e.g. align left, make it nicer)"
-        aria-label="Command"
+        placeholder={
+          answer
+            ? "Answer the question…"
+            : "Type a command (e.g. align left, make it nicer)"
+        }
+        aria-label={answer ? "Answer clarification" : "Command"}
+        disabled={disabled}
       />
-      <button type="submit">Run</button>
+      <button type="submit" disabled={disabled}>
+        {answer ? "Answer" : "Run"}
+      </button>
     </form>
   );
 }

@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Board, type BoardTool } from "./canvas/Board";
 import { BoardToolbar } from "./canvas/Toolbar";
+import { ClarifyPanel } from "./chrome/ClarifyPanel";
 import { CommandInput } from "./chrome/CommandInput";
 import { CommandPreview } from "./chrome/CommandPreview";
 import { ScenePreview } from "./chrome/ScenePreview";
 import { SettingsDrawer } from "./chrome/SettingsDrawer";
 import { StatusBar } from "./chrome/StatusBar";
+import { runPipeline } from "./agent/pipeline/orchestrator";
+import type {
+  PendingAsk,
+  PipelineDeps,
+  PipelineStage,
+  PipelineTrace,
+} from "./agent/pipeline/session";
 import { resolveCommand } from "./intent/resolveCommand";
 import { requestIntent } from "./intent/omnirouteClient";
 import { type Command, unknownCommand } from "./intent/types";
@@ -15,10 +23,10 @@ import {
   saveSettings,
   type Settings,
 } from "./settings/store";
-import { applyTurn } from "./scene/turn";
 import { demoScene } from "./scene/empty";
+import { sceneHash } from "./scene/hash";
 import { SceneHistory } from "./scene/history";
-import { hostUndoKind, isWholeBoardGen } from "./scene/host";
+import { hostUndoKind } from "./scene/host";
 import { loadScene, saveScene } from "./scene/persist";
 import { projectForAgent } from "./scene/project";
 import type { Scene } from "./scene/types";
@@ -48,6 +56,10 @@ const COPY = {
   tooShort: "Hold Talk a bit longer, or type a command.",
 };
 
+function isPipelineRunning(stage: PipelineStage): boolean {
+  return stage !== "idle" && stage !== "asking";
+}
+
 export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [draft, setDraft] = useState<Settings>(DEFAULT_SETTINGS);
@@ -60,12 +72,25 @@ export default function App() {
   const [scene, setScene] = useState<Scene>(() => demoScene());
   const [tool, setTool] = useState<BoardTool>("select");
   const [answer, setAnswer] = useState<string | null>(null);
+  const [pendingAsk, setPendingAsk] = useState<PendingAsk | null>(null);
+  const [stage, setStage] = useState<PipelineStage>("idle");
+  const [trace, setTrace] = useState<PipelineTrace | undefined>(undefined);
   const recorderRef = useRef<VoiceRecorder | null>(null);
   const maxTimerRef = useRef<number | null>(null);
   const busyRef = useRef(false);
   const historyRef = useRef(boardHistory);
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const pendingRef = useRef(pendingAsk);
+  pendingRef.current = pendingAsk;
+  const stageRef = useRef(stage);
+  stageRef.current = stage;
+  const abortRef = useRef<AbortController | null>(null);
+  const runIdRef = useRef(0);
+
+  const pipelineRunning = isPipelineRunning(stage);
 
   useEffect(() => {
     const loaded = loadSettings();
@@ -87,8 +112,18 @@ export default function App() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        const el = event.target as HTMLElement | null;
+        if (el?.closest?.(".board-label-input")) return;
+        if (stageRef.current !== "idle") {
+          event.preventDefault();
+          cancelPipeline();
+        }
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
         event.preventDefault();
+        if (isPipelineRunning(stageRef.current)) return;
         const next = historyRef.current.undo(sceneRef.current);
         setScene(next);
         setToast("Undid last change.");
@@ -102,10 +137,87 @@ export default function App() {
     setToast(message);
   }
 
+  function pipelineDeps(): PipelineDeps {
+    const currentSettings = settingsRef.current;
+    return {
+      enhance: async ({ transcript: text }) => ({
+        status: "ready",
+        summary: text,
+        targetQueries: [],
+      }),
+      judge: async () => ({ route: "command" as const, reason: "default" }),
+      requestCommand: (t, n, sel) =>
+        resolveCommand(t, n, currentSettings, requestIntent, sel),
+    };
+  }
+
+  function cancelPipeline() {
+    abortRef.current?.abort();
+    runIdRef.current += 1;
+    busyRef.current = false;
+    abortRef.current = null;
+    setPendingAsk(null);
+    pendingRef.current = null;
+    setStage("idle");
+    setVoice("idle");
+    showToast("Cancelled.");
+  }
+
   function undo() {
+    if (isPipelineRunning(stageRef.current)) return;
     const next = historyRef.current.undo(sceneRef.current);
     setScene(next);
     showToast("Undid last change.");
+  }
+
+  async function executePipeline(text: string) {
+    const runId = ++runIdRef.current;
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setVoice("understanding");
+    setStage("enhancing");
+    setTranscript(text);
+    const start = sceneRef.current;
+    try {
+      const out = await runPipeline(
+        {
+          transcript: text,
+          scene: start,
+          settings: settingsRef.current,
+          pending: pendingRef.current,
+          signal: ac.signal,
+          getLiveHash: () => sceneHash(sceneRef.current),
+        },
+        pipelineDeps(),
+      );
+      if (runId !== runIdRef.current) return;
+      if (out.wrote) {
+        historyRef.current.record(text, start, out.scene);
+      }
+      setScene(out.scene);
+      setCommand(out.command);
+      setAnswer(out.answer);
+      setTrace(out.trace);
+      if (out.ask && out.pending) {
+        setPendingAsk(out.pending);
+        pendingRef.current = out.pending;
+        setStage("asking");
+        setVoice("idle");
+      } else {
+        setPendingAsk(null);
+        pendingRef.current = null;
+        setStage("idle");
+        setVoice("idle");
+        showToast(out.say);
+      }
+    } catch {
+      if (runId !== runIdRef.current) return;
+      setPendingAsk(null);
+      pendingRef.current = null;
+      setStage("idle");
+      setVoice("idle");
+      showToast(unknownCommand().say);
+    }
   }
 
   async function runText(text: string) {
@@ -122,34 +234,23 @@ export default function App() {
       showToast(`Reverted ${undoKind.hunk}.`);
       return;
     }
-    if (isWholeBoardGen(trimmed)) {
-      const result = applyTurn(
-        sceneRef.current,
-        { type: "ask", say: "" },
-        trimmed,
-      );
-      setAnswer(result.answer);
-      showToast(result.say);
-      return;
+    if (isPipelineRunning(stageRef.current)) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
+    try {
+      await executePipeline(trimmed);
+    } finally {
+      busyRef.current = false;
     }
-    setVoice("understanding");
-    const current = sceneRef.current;
-    const parsed = await resolveCommand(
-      trimmed,
-      current.selection.length,
-      settings,
-      requestIntent,
-      current.selection,
-    );
-    const result = applyTurn(current, { type: "command", command: parsed }, trimmed);
-    if (result.wrote) {
-      historyRef.current.record(trimmed, current, result.scene);
-    }
-    setScene(result.scene);
-    setCommand(parsed);
-    setAnswer(result.answer);
-    setVoice("idle");
-    showToast(result.say);
+  }
+
+  function answerWithSelection(ids: string[]) {
+    const ask = pendingRef.current;
+    if (!ask) return;
+    const next = { ...sceneRef.current, selection: ids };
+    sceneRef.current = next;
+    setScene(next);
+    void runText(ask.originalTranscript);
   }
 
   async function finishRecording() {
@@ -189,29 +290,11 @@ export default function App() {
       return;
     }
     setTranscript(result.text);
-    setVoice("understanding");
-    const current = sceneRef.current;
-    const commandResult = await resolveCommand(
-      result.text,
-      current.selection.length,
-      settings,
-      requestIntent,
-      current.selection,
-    );
-    const applied = applyTurn(
-      current,
-      { type: "command", command: commandResult },
-      result.text,
-    );
-    if (applied.wrote) {
-      historyRef.current.record(result.text, current, applied.scene);
+    try {
+      await executePipeline(result.text);
+    } finally {
+      busyRef.current = false;
     }
-    setScene(applied.scene);
-    setCommand(commandResult);
-    setAnswer(applied.answer);
-    setVoice("idle");
-    showToast(applied.say);
-    busyRef.current = false;
   }
 
   async function toggleTalk() {
@@ -219,6 +302,7 @@ export default function App() {
       await finishRecording();
       return;
     }
+    if (pipelineRunning) return;
     if (voice === "transcribing" || voice === "understanding") return;
     if (!settings.groqApiKey.trim()) {
       showToast(COPY.missingGroq);
@@ -251,6 +335,8 @@ export default function App() {
           <CommandInput
             value={input}
             onChange={setInput}
+            mode={stage === "asking" ? "answer" : "command"}
+            disabled={pipelineRunning}
             onSubmit={() => {
               void runText(input);
               setInput("");
@@ -260,10 +346,17 @@ export default function App() {
             type="button"
             className={voice === "listening" ? "talk live" : "talk"}
             onClick={() => void toggleTalk()}
+            disabled={pipelineRunning && voice !== "listening"}
           >
             {voice === "listening" ? "Stop talking" : "Talk"}
           </button>
-          <button type="button" className="secondary" onClick={undo} data-testid="undo">
+          <button
+            type="button"
+            className="secondary"
+            onClick={undo}
+            data-testid="undo"
+            disabled={pipelineRunning}
+          >
             Undo
           </button>
           <button
@@ -278,7 +371,20 @@ export default function App() {
           </button>
         </div>
         <BoardToolbar tool={tool} onTool={setTool} />
-        <StatusBar voice={voice} transcript={transcript} toast={toast} />
+        <StatusBar
+          voice={voice}
+          transcript={transcript}
+          toast={toast}
+          stage={stage}
+        />
+        {pendingAsk ? (
+          <ClarifyPanel
+            ask={pendingAsk}
+            selection={scene.selection}
+            onAnswerSelection={answerWithSelection}
+            onCancel={cancelPipeline}
+          />
+        ) : null}
       </header>
       <div className="workspace">
         <Board
@@ -286,9 +392,12 @@ export default function App() {
           tool={tool}
           onChange={setScene}
           onCheckpoint={() => historyRef.current.snapshot(sceneRef.current)}
+          pickHint={
+            pendingAsk ? { candidates: pendingAsk.candidates } : null
+          }
         />
         <aside className="side">
-          <CommandPreview command={command} />
+          <CommandPreview command={command} trace={trace} />
           {answer ? (
             <section className="preview answer" aria-label="Answer">
               <h2>Answer</h2>

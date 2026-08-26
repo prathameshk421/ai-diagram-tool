@@ -17,9 +17,9 @@ If you edited code and skipped `CHANGELOG.md`, the change is incomplete. If you 
 
 ## Product (this slice)
 
-Voice-driven **architecture board**. Speak or type a short command. Groq Whisper transcribes. OmniRoute OpenCode Go DeepSeek always interprets the text (no keyword table). The write path is an `arch-scene/v1` scene (`diagram.arch.json` in `localStorage`): the agent patches semantics; the kernel owns pins, sizes, and routes. Humans draw, select, and drag on an SVG board.
+Voice-driven **architecture board**. Speak or type a short command. Groq Whisper transcribes. The host `runPipeline` orchestrator then runs injectable enhance → judge → command/build roles. Production still passthrough-enhances and always sends remaining commands to OmniRoute OpenCode Go DeepSeek (no keyword table). The write path is an `arch-scene/v1` scene (`diagram.arch.json` in `localStorage`): the agent patches semantics; the kernel owns pins, sizes, and routes. Humans draw, select, and drag on an SVG board.
 
-Command JSON `{op, args, confidence, say}` is still the LLM output for the original ops. The kernel maps those ops onto the scene. Questions, undo, and paste/zoom are host channels and must not dirty the file SHA.
+Command JSON `{op, args, confidence, say}` is still the LLM output for the original ops. The kernel maps those ops onto the scene. Questions, undo, asks, and paste/zoom are host channels and must not dirty the file SHA. Clarifications use `ClarifyPanel`, not toast-only.
 
 ## Stack
 
@@ -33,7 +33,9 @@ Command JSON `{op, args, confidence, say}` is still the LLM output for the origi
 
 ## Do
 
-- Always send the transcript to OmniRoute (except host channels: undo / put it back). Do not add a keyword/regex shortcut for align/perfect/etc.
+- Typed and spoken commands go through `runPipeline` (`src/agent/pipeline/orchestrator.ts`) except host undo. Production injects passthrough enhance + judge `route: "command"` + `resolveCommand`/`requestIntent` so align left still hits OmniRoute. Do not add a keyword/regex shortcut for align/perfect/etc.
+- Capture `sceneHash` at pipeline start. If `getLiveHash()` / `liveHash` differs before apply → no write, say `"Board changed — try again."`. Abort or 500 from a role → no write, unknown.
+- Pipeline asks set `pendingAsk` and `ClarifyPanel`. At most one `status: "ask"` per `runPipeline` invocation. Disable Run / Talk / Undo (and ignore ⌘Z) while the pipeline is running (not idle/asking).
 - Send `"thinking": { "type": "disabled" }`. Never `thinking: false`. HTTP 400 → omit `thinking` once.
 - Reject coordinate keys from the LLM and from agent JSON Patch (`pin.x`, `width`, `height`, `ink.points`).
 - Empty transcript or `no_speech_prob >= 0.6` skips intent.
@@ -57,13 +59,16 @@ Command JSON `{op, args, confidence, say}` is still the LLM output for the origi
 ## Layout
 
 ```
-src/          Harness UI + STT + intent
-src/scene/    arch-scene/v1 kernel (validate, passes, constraints, turn)
-src/canvas/   SVG board (human draw / select / drag)
-server/       Same-origin Groq + OmniRoute proxy
-tests/        Vitest (mock) + tests/live (requires keys) + tests/scene
-docs/         Feature contract + implementation plan + canvas research
-frontend/     Later canvas sketch from main — not this app
-backend/      FastAPI health from main — not this app
-firebase/     Hosting/rules sketch from main — not this app
+src/                 Harness UI + STT + intent
+src/agent/pipeline/  runPipeline session + orchestrator (injectable roles)
+src/agent/edit/      applyEditPlan tools
+src/scene/           arch-scene/v1 kernel (validate, passes, constraints, turn)
+src/canvas/          SVG board (human draw / select / drag)
+src/chrome/          CommandInput, ClarifyPanel, StatusBar, previews
+server/              Same-origin Groq + OmniRoute proxy
+tests/               Vitest (mock) + tests/live (requires keys) + tests/scene + tests/agent
+docs/                Feature contract + implementation plan + canvas research
+frontend/            Later canvas sketch from main — not this app
+backend/             FastAPI health from main — not this app
+firebase/            Hosting/rules sketch from main — not this app
 ```

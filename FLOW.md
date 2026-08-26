@@ -25,12 +25,14 @@ Browser  :5173  →  Vite (repo root)
 2. Draw on the board (box / pen / connect) or use the demo nodes. Releasing a box opens the label field. Select objects. Drag writes `pin` only after a 4px threshold.
 3. Type a command **or** click Talk (300ms–15s), then Stop talking.
 4. Talk → `POST /api/transcribe` (Groq). Empty text or `no_speech_prob >= 0.6` → unknown; skip OmniRoute.
-5. Host undo phrases (`undo`, `put it back`, `undo last kafka bit`) skip OmniRoute and restore a snapshot / journal hunk.
-6. Host WONTFIX: a long “build/generate a … architecture/pipeline” paragraph does not write the file and does not call OmniRoute.
-7. Otherwise `resolveCommand` always `POST /api/intent` when OmniRoute URL+key are set. Payload: `{ transcript, selectionCount, selection }`.
+5. Host undo phrases (`undo`, `put it back`, `undo last kafka bit`) skip the pipeline and restore a snapshot / journal hunk.
+6. Everything else goes through `runPipeline` (busy mutex + AbortController). Host WONTFIX / color / split / duplicate-board / questions call `applyTurn` only — **no** enhance/judge/requestCommand.
+7. Remaining commands: production passthrough `enhance` + `judge` `route: "command"` + `resolveCommand` → `POST /api/intent` when OmniRoute URL+key are set. Payload: `{ transcript, selectionCount, selection }`. No keyword table.
 8. Missing OmniRoute key → toast. No regex fallback.
-9. `applyTurn` maps Command JSON onto the scene through `desugarCommand` + `applyEditPlan` (or a JSON Patch). Questions return an answer and do not write.
-10. Preview shows Command JSON, optional answer, and the **UI** scene copy (`projectForAgent`: no `ink.points`, plus `view`; pins may remain). LLM payloads use `projectForAgentSafe` (pins stripped too).
+9. Before apply, if `getLiveHash()` ≠ start `sceneHash` → no write (`Board changed — try again.`). Role 500/abort → no write, unknown.
+10. `applyTurn` maps Command JSON onto the scene through `desugarCommand` + `applyEditPlan` (or a JSON Patch). Questions return an answer and do not write. Pipeline `ask` + `pending` opens **ClarifyPanel** (CommandInput answer mode; Talk transcripts feed the same pending). Toast is not the ask surface.
+11. Preview shows Command JSON, or Pipeline JSON when `trace.stage !== "idle"`, optional answer, and the **UI** scene copy (`projectForAgent`: no `ink.points`, plus `view`; pins may remain). LLM payloads use `projectForAgentSafe` (pins stripped too).
+12. While stage is running (not idle/asking): Run, Talk, and Undo are disabled; ⌘Z is ignored. Esc cancels. Human draw during ask is allowed.
 
 ## Scene kernel
 
@@ -65,6 +67,20 @@ No Web Speech. Missing Groq key → toast; do not record.
 ## Intent
 
 ```
+type-in / Talk transcript
+  → host undo? (App history)
+  → runPipeline(scene snapshot, getLiveHash, pending, signal)
+       host question / whole-board / color / split / duplicate
+         → applyTurn only (0 LLM calls)
+       else enhance → (ask | refuse | ready)
+         ask → ClarifyPanel, no write
+         ready + valid command → applyTurn (skip requestCommand)
+         ready else judge
+           command → requestCommand = resolveCommand → requestIntent
+           build → deps.build or unknown (no write until Task 5)
+           plan → unknown
+       hash mismatch / abort / throw → no write
+
 requestChatRole(role, system, payload)
   → POST /api/intent  (same headers as today)
        max_tokens + timeout from ROLE_BUDGETS[role]
@@ -95,6 +111,9 @@ requestIntent = requestChatRole(role: "command")
 | Beautify shuffled the graph | Freeze flags broken; beautify must restyle in place |
 | Redis added beside the DB | Insert left a sidecar; must splice the edge |
 | Question changed the diagram | `applyTurn` must SHA-stabilize questions |
+| Ask only flashed a toast | Pipeline `ask` must set `pendingAsk` + ClarifyPanel |
+| Align left skipped OmniRoute | Production enhance must not pre-parse a command; `requestCommand` → `resolveCommand` |
+| Edit applied after a drag | `getLiveHash` / `liveHash` gate before apply |
 | Opened the wrong canvas | You ran `frontend/`; use repo-root `npm run dev` |
 | Box has no label field / typing goes nowhere | SVG captured the pointer; capture is drag-only, see `src/canvas/Board.tsx` |
 | Pen stroke vanished | No `pointermove`; up-point must be appended before `commitPenStroke` |

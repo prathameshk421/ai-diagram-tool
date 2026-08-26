@@ -2,6 +2,12 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Pipeline orchestrator, session types, ClarifyPanel
+
+- `runPipeline` in `src/agent/pipeline/orchestrator.ts` is the host turn: host channels skip role LLMs; otherwise injectable `enhance` / `judge` / `requestCommand` / optional `build`. Questions, asks, abort, 500, and hash mismatch never write. Valid `enhance.command` skips `requestCommand`.
+- App keeps a pipeline session (stage, pending ask, AbortController, busy mutex). Production deps are passthrough enhance + judge `command` + `resolveCommand`/`requestIntent`. Esc cancels. Undo/Talk/Run are disabled while running.
+- `ClarifyPanel` is the ask UI. CommandInput `answer` mode, StatusBar stage copy, CommandPreview pipeline JSON, Board amber `#f4d58d` candidate halos.
+
 ## 2026-08-26 — Agent-safe projection + per-role OmniRoute chat
 
 - `projectForAgentSafe` clones the scene, deletes every `node.pin` and `ink.points`, and attaches `view` computed from the stored scene (so `rel` stays correct). `projectForAgent` is unchanged for ScenePreview (pins may remain).
