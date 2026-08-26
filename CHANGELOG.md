@@ -2,6 +2,27 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — RAG edge cases, whole-board refuse, double-click labels
+
+- Host channel: long “build/generate a … architecture/pipeline” prompts do not write the scene (SHA stable). Color targeting and split-without-edges ask.
+- Double-click a box to set `label` (human-owned; no coordinates).
+- Kernel tests for a RAG pipeline: insert-on-path cache, beautify freezePins, fan-out that keeps leftover edges, async dashed ingest, annotate-path, whole-board WONTFIX.
+
+## 2026-08-26 — arch-scene/v1 kernel + SVG architecture board
+
+- Locked `arch-scene/v1` in `src/scene/`: schema, validator, RFC6902 patch (rejects coordinates / ink points), passes (beautify with implied freezes, convert-ink same-id, insert-on-path, merge, tidy-layout, unoverlap, restyle-icons, annotate-path), constraints, referent resolver, delete+retarget, SHA-stable question turns, host undo journal.
+- SVG board in `src/canvas/`: select / box / pen / connect; human drag writes `pin`; camera pan/zoom is not stored. Replaced the selection-count stub with real `selection[]` ids on the OmniRoute payload. Box/pen commits use pointer coordinates (not React state) so a same-frame drag still creates a node. Undo snapshots live at module scope so Strict Mode remounts do not wipe the stack.
+- Command JSON still comes from OmniRoute; `applyTurn` maps it onto the scene. Persist JSON in `localStorage` (`ai-diagram-tool:scene`). Agent projection omits `ink.points` and adds `view`.
+- Tests: `tests/scene/*` (illegal writes, selected beautify, empty-selection ask, insert not sidecar, delete retarget, question SHA, AWS restyle freezePins, two-Kafka ask) plus existing intent tests.
+- Product docs: canvas is this slice. No Excalidraw, no vision, no whole-board generation.
+
+## 2026-08-26 — Audit utterances 48–76 against arch YAML
+
+- Added `docs/canvas-audit-48-76.md`: WORKS / WORKS_IF / FAILS for targeting, labels, questions, undo, messy voice.
+- Scored against surgical `diagram.arch.yaml` edits (kernel geometry, host `selection[]`). No code.
+- 1 WORKS / 20 WORKS_IF / 8 FAILS. Hard fails: merge/dedupe, left-Kafka, blue-one, protocol labels, legend, numbered path, duplicate board, hunk undo.
+- Pointed `docs/canvas-agent-research.md` at that audit so the nine-op tool list is not read as covering 48–76.
+
 ## 2026-08-26 — Pure AI intent (no keyword table)
 
 - Deleted `keywordParser`. Every typed or spoken command goes to OmniRoute DeepSeek.

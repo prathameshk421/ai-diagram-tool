@@ -15,11 +15,73 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-width: 52rem;
-  margin: 0 auto;
-  padding: 1.25rem;
+  max-width: none;
+  margin: 0;
+  padding: 0.85rem 1rem 1rem;
   box-sizing: border-box;
-  gap: 1rem;
+  gap: 0.65rem;
+}
+
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: 0.75rem;
+}
+
+.side {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.board-svg {
+  width: 100%;
+  height: 100%;
+  border: 1px solid #2a3544;
+  border-radius: 12px;
+  touch-action: none;
+  cursor: crosshair;
+  background: #121820;
+}
+
+.board-toolbar {
+  display: flex;
+  gap: 0.35rem;
+}
+
+button.tool {
+  background: #1a222c;
+  border-color: #2a3544;
+}
+
+button.tool.on {
+  background: #2f6fed;
+  border-color: #2f6fed;
+}
+
+.board-label {
+  fill: #e7ecf3;
+  font-size: 12px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.board-label.dim {
+  fill: #9aa8b9;
+  font-size: 11px;
+}
+
+.board-label-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: 12px ui-sans-serif, system-ui, sans-serif;
+  color: #e7ecf3;
+  background: #121820;
+  border: 1px solid #2f6fed;
+  border-radius: 4px;
+  padding: 2px 4px;
 }
 
 .chrome {
@@ -119,8 +181,22 @@ button.talk.live {
   background: #1a222c;
   border: 1px solid #2a3544;
   border-radius: 12px;
-  padding: 1rem;
+  padding: 0.85rem;
   overflow: auto;
+}
+
+.preview.answer {
+  flex: 0 0 auto;
+}
+
+.preview.answer p {
+  margin: 0;
+  color: #e7ecf3;
+  font-size: 0.9rem;
+}
+
+.scene-preview {
+  flex: 1.4;
 }
 
 .preview pre {
@@ -170,4 +246,11 @@ button.talk.live {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.5rem;
+}
+
+@media (max-width: 800px) {
+  .workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(14rem, 1fr) minmax(8rem, 38%);
+  }
 }

@@ -1,4 +1,4 @@
-export const SYSTEM_PROMPT = `You convert one English diagram command into json. Never invent coordinates, ids, or canvas json.
+export const SYSTEM_PROMPT = `You convert one English diagram command into json. Never invent coordinates, ids, or canvas json. Never emit pin, width, height, points, or hex colors. selection is the list of selected object ids.
 
 Output only {"op","args","confidence","say"}. No markdown.
 

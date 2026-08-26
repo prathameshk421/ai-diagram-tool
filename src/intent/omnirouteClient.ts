@@ -26,6 +26,7 @@ function buildBody(
   transcript: string,
   selectionCount: number,
   includeThinking: boolean,
+  selection: string[] = [],
 ): ChatBody {
   const body: ChatBody = {
     model: settings.omnirouteModel,
@@ -36,7 +37,7 @@ function buildBody(
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: JSON.stringify({ transcript, selectionCount }),
+        content: JSON.stringify({ transcript, selectionCount, selection }),
       },
     ],
   };
@@ -85,15 +86,22 @@ export async function requestIntent(
   settings: Settings,
   transcript: string,
   selectionCount: number,
+  selection: string[] = [],
 ): Promise<Command> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), INTENT_TIMEOUT_MS);
   try {
-    let body = buildBody(settings, transcript, selectionCount, true);
+    let body = buildBody(settings, transcript, selectionCount, true, selection);
     let response = await postIntent(settings, body, controller.signal);
     if (response.status === 400) {
       await response.text();
-      body = buildBody(settings, transcript, selectionCount, false);
+      body = buildBody(
+        settings,
+        transcript,
+        selectionCount,
+        false,
+        selection,
+      );
       response = await postIntent(settings, body, controller.signal);
     }
     const raw = await response.text();

@@ -6,17 +6,53 @@
 
 Software / system architecture diagrams (system design, AI/ML pipelines, cloud infra). Not building floor plans.
 
-## This slice: agent path, no board
+## Whole-board generation is a host refuse, not a keyword op table
 
-Voice → Groq Whisper → OmniRoute OpenCode Go DeepSeek → Command JSON preview. **No drawing surface.** A later canvas will expose these ops as agent tools against an agent-optimized scene, not a raw editor dump.
+A paragraph like “build an AI RAG pipeline architecture with …” must not mint a graph. That is classified as a **host WONTFIX** (same family as undo), not an OmniRoute shortcut for `align`. Short commands such as “align left” still go to the LLM.
 
-The first harness used a keyword table so “align left” skipped the model. The owner asked to drop that and keep intent **pure AI**. Known phrases and paraphrases both hit DeepSeek.
+Double-click label editing is **human-owned**, like drag-to-pin. The agent still cannot write coordinates.
+
+## This slice: architecture board + agent path
+
+Voice → Groq Whisper → OmniRoute OpenCode Go DeepSeek → Command JSON → `arch-scene/v1` kernel → SVG board.
+
+The agent surgically edits one scene. The kernel owns pins, sizes, and routes. Humans draw and drag. There is still **no keyword table** for diagram ops. Undo is a **host** channel (snapshots + op journal), not an OmniRoute shortcut for align/perfect.
+
+## Scene file is JSON, not a yaml dependency
+
+The contract is YAML-shaped (`diagram.arch.yaml` in the locked plan). This repo persists **JSON** (`localStorage` key `ai-diagram-tool:scene`) so we do not add a yaml parser. Field names and enums match `arch-scene/v1`. JSON is allowed by the plan.
+
+## No elkjs
+
+`tidy-layout` uses a small layered rank layout in `src/scene/layout.ts` for **unpinned, unlocked** nodes. We do not serialize ELK dummy nodes. Human/locked pins stay put.
+
+## Command JSON stays the LLM output
+
+Existing OmniRoute tests require `{op, args, confidence, say}`. The kernel **maps** those ops onto passes/constraints (`perfect` → convert-ink + beautify). Structural ops (`insert`, delete+retarget, merge) are kernel functions + JSON Patch. The model must not emit coordinates. User payload is `{ transcript, selectionCount, selection }`.
+
+## Beautify is not relayout and not AWS
+
+Omitting freeze flags is valid: they are **implied**. Explicit `freezePins: false` (etc.) is invalid. Vague “nicer” / “clean this up” is beautify only. AWS icons require `palette: aws` + `restyle-icons`, and that pass still freezePins.
+
+## Insert is a splice
+
+“Add Redis in front of the DB” must not leave `api→db`. `insert { node, on: edgeId }` deletes the old edge and writes `A→node` and `node→B`. Kernel places the new pin between the endpoints.
+
+## Questions and undo do not go through scene writes
+
+Question-classified transcripts return the same scene object (SHA unchanged) and an answer string. Undo / put it back pops a host snapshot. “Undo last kafka bit” matches the op journal by label.
+
+## Referents without vision
+
+Unique `label`/`icon` (case-insensitive), else `selection` / `lastDrawn`, else `view.rel`. Two objects with the same name and a side-query that ties → ask. Color queries ask. No OCR.
 
 ## Stack: root Vite harness + Groq + OmniRoute
 
 | Piece | Choice | Why |
 |---|---|---|
-| App | React + Vite at repo root | Harness UI only; no editor package |
+| App | React + Vite at repo root | Harness + SVG board; no editor package |
+| Scene | `src/scene/` TypeScript kernel | Closed schema; tests without a browser |
+| Board | Custom SVG | Excalidraw JSON must not enter the model |
 | STT | Groq `whisper-large-v3-turbo` | Hosted Whisper; filename must have an extension; `verbose_json` |
 | Intent | OmniRoute DeepSeek Flash (Pro via Settings) on every command | No keyword/regex table; `"thinking": { "type": "disabled" }` |
 | Keys | Settings / `localStorage` | Proxy must not read `process.env` |
@@ -24,13 +60,13 @@ The first harness used a keyword table so “align left” skipped the model. Th
 
 ## What `frontend/`, `backend/`, `firebase/` are
 
-They landed from `main` as a later canvas / Firebase hosting sketch (Google login, Firestore, FastAPI `/api/health`). They are **not** the current app. Do not run `cd frontend` for this slice. Do not reintroduce Web Speech or an editor board until a later canvas PR.
+They landed from `main` as a later canvas / Firebase hosting sketch (Google login, Firestore, FastAPI `/api/health`). They are **not** the current app. Do not run `cd frontend`. Do not reintroduce Web Speech or Excalidraw.
 
 ## What this slice will not do
 
-No board, geometry, scene persist, text-to-diagram, whole-board generation, Rumik/Ira talking companion, OpenCode CLI, env-key proxy, thinking-enabled LLM calls. English commands only.
+No vision, OCR, color targeting, text-to-diagram from a paragraph or photo, duplicate board beside the original, protocol labels guessed onto arrows, split without named edges, Rumik/Ira talking companion, OpenCode CLI, env-key proxy, thinking-enabled LLM calls. English commands only.
 
 ## Tests
 
-- `npm test`: mocks only; no Groq/OmniRoute network.
+- `npm test`: mocks only; no Groq/OmniRoute network. Includes `tests/scene` contract tests.
 - `npm run test:live`: requires `GROQ_API_KEY` (must start with `gsk_`) and `OMNIROUTE_API_KEY`. Probe rate-limit endpoints first. At most one Whisper call and one chat completion. Do not retry 429.
