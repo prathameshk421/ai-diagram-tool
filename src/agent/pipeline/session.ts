@@ -36,6 +36,7 @@ export type EnhancerOutput =
       status: "ready";
       summary: string;
       targetQueries: string[];
+      ids?: string[];
       hints?: Record<string, unknown>;
       command?: Command; // optional pre-parsed command
     }

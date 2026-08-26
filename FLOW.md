@@ -27,7 +27,7 @@ Browser  :5173  →  Vite (repo root)
 4. Talk → `POST /api/transcribe` (Groq). Empty text or `no_speech_prob >= 0.6` → unknown; skip OmniRoute.
 5. Host undo phrases (`undo`, `put it back`, `undo last kafka bit`) skip the pipeline and restore a snapshot / journal hunk.
 6. Everything else goes through `runPipeline` (busy mutex + AbortController). Host WONTFIX / color / split / duplicate-board / questions call `applyTurn` only — **no** enhance/judge/requestCommand.
-7. Remaining commands: production passthrough `enhance` + `judge` `route: "command"` + `resolveCommand` → `POST /api/intent` when OmniRoute URL+key are set. Payload: `{ transcript, selectionCount, selection }`. No keyword table.
+7. Remaining commands: production `runEnhancer` (OmniRoute JSON + host `bindReferents`) then `runJudge` (route overlay) then `resolveCommand` → `POST /api/intent` when OmniRoute URL+key are set. Enhancer payload includes pin-free `projectForAgentSafe(scene)`. Judge sees scene stats only. No keyword table. Empty OmniRoute key → enhancer refuse, no fetch.
 8. Missing OmniRoute key → toast. No regex fallback.
 9. Before apply, if `getLiveHash()` ≠ start `sceneHash` → no write (`Board changed — try again.`). Role 500/abort → no write, unknown.
 10. `applyTurn` maps Command JSON onto the scene through `desugarCommand` + `applyEditPlan` (or a JSON Patch). Questions return an answer and do not write. Pipeline `ask` always carries `pending` (including deictic/host asks) and opens **ClarifyPanel**. Toast is not the ask surface. App applies `sceneAfterPipeline(live, out)` so a no-write result cannot roll back human edits.
@@ -72,10 +72,14 @@ type-in / Talk transcript
   → runPipeline(scene snapshot, getLiveHash, pending, signal)
        host question / whole-board / color / split / duplicate
          → applyTurn only (0 LLM calls)
-       else enhance → (ask | refuse | ready)
+       else enhance = runEnhancer → requestChatRole(role enhancer) + parse JSON
+         payload { transcript, selection, lastDrawn, pending, followUpTo, scene: projectForAgentSafe }
+         host bindReferents(scene, targetQueries) after the LLM (never inside the model)
          ask → ClarifyPanel, no write
+         refuse → unknown, no write
          ready + valid command → applyTurn (skip requestCommand)
-         ready else judge
+         ready else judge = runJudge → requestChatRole(role judge)
+           overlay: usableCommand → command; structural hint without multiStep → build (never default plan on LLM failure)
            command → requestCommand = resolveCommand → requestIntent
            build → deps.build or unknown (no write until Task 5)
            plan → unknown
@@ -113,6 +117,8 @@ requestIntent = requestChatRole(role: "command")
 | Question changed the diagram | `applyTurn` must SHA-stabilize questions |
 | Ask only flashed a toast | Pipeline `ask` must set `pendingAsk` + ClarifyPanel |
 | Align left skipped OmniRoute | Production enhance must not pre-parse a command; `requestCommand` → `resolveCommand` |
+| Enhancer invented node ids | Host `bindReferents` must run after the LLM; payload must be `projectForAgentSafe` |
+| Judge defaulted to plan on 500 | `runJudge` fallback is `command`, never plan |
 | Edit applied after a drag | `getLiveHash` / `liveHash` gate before apply |
 | Opened the wrong canvas | You ran `frontend/`; use repo-root `npm run dev` |
 | Box has no label field / typing goes nowhere | SVG captured the pointer; capture is drag-only, see `src/canvas/Board.tsx` |

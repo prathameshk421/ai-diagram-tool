@@ -2,19 +2,23 @@
 
 **This file is for the agent.** Record why a stack, library, test, or design was chosen. Add a section whenever you decide something non-obvious.
 
-## Pipeline roles are injectable; production is passthrough + OmniRoute command
+## Pipeline roles are injectable; production enhancer/judge call OmniRoute
 
-`runPipeline` takes `PipelineDeps` so tests mock enhance/judge/requestCommand/build. Production App does **not** parse enhancer/judge JSON yet (Task 4). It injects:
+`runPipeline` takes `PipelineDeps` so tests mock enhance/judge/requestCommand/build. Production App injects:
 
-- enhance → `{ status: "ready", summary: transcript, targetQueries: [] }`
-- judge → `{ route: "command", reason: "default" }`
-- requestCommand → `resolveCommand(..., requestIntent)` so align left still hits OmniRoute once
+- enhance → `runEnhancer` (`requestChatRole` role enhancer + `parseEnhancer` + host `bindReferents`)
+- judge → `runJudge` (`requestChatRole` role judge + `parseJudge` + structural overlay)
+- requestCommand → `resolveCommand(..., requestIntent)` so a ready enhancer without `command` still hits OmniRoute
 
-If `enhance.command` is a valid Command (`confidence >= 0.45`, `op !== unknown`), the host overlays `route: "command"` and **does not** call `requestCommand` (simple path can finish in 1 call). Tests of the command path mock that. The live app passthrough does not set `command`, so OmniRoute still runs.
+If `enhance.command` is a valid Command (`confidence >= 0.45`, `op !== unknown`), the host overlays `route: "command"` and **does not** call `requestCommand` (simple path can finish in 1 call). The enhancer LLM may include that Command JSON for a filled layout op; the host does **not** regex align/perfect.
 
 Hard LLM cap is `TURN_CAPS.maxLlmCallsComplex` (5). `maxLlmCallsSimple` (2) is the command-path budget when overlay skips judge/requestCommand. Hash gating uses `getLiveHash` / `liveHash` / `nowHash` against the start snapshot so a human draw during the run cancels the write.
 
 Asks are a `PendingAsk` + `ClarifyPanel`, not toast-only. `applyTurn.ask` (deictic / color / split) synthesizes pending so the panel always opens. `sceneAfterPipeline(live, out)` is how App commits: only a `wrote` result replaces the live scene, so a hash-gate cancel cannot wipe a concurrent drag.
+
+## Host bindReferents after the enhancer LLM
+
+The enhancer emits English `targetQueries`, not coordinates. `bindReferents` is host-only: exact node/edge ids pass through; otherwise `resolveReferent`. Any ask/none becomes an enhancer `ask` (even if the LLM said ready). Judge overlay never defaults to `plan` on parse/HTTP failure — fallback is `command`. A valid Command on the intent still forces `command`. A single structural step (`hints.structural` without `multiStep`) may overlay `plan` → `build`.
 
 ## Per-role OmniRoute budgets
 

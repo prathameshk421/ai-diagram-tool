@@ -2,6 +2,14 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Enhancer and judge roles with host resolveReferent
+
+- `runEnhancer` / `runJudge` call `requestChatRole` and parse JSON. Invalid JSON and HTTP 500 fail closed (enhancer refuse unknown; judge `route: "command"` — never plan).
+- Host `bindReferents` runs **after** the enhancer LLM: exact node/edge ids pass through, else `resolveReferent`. Ambiguous Kafka → ask with candidate ids; missing object → ask. Empty OmniRoute key refuses without fetch.
+- Enhancer payload is `projectForAgentSafe(scene)` (no pins). Judge payload is scene stats only (node/edge counts), not the full scene.
+- Judge overlay: valid `intent.command` forces `command`; `hints.structural` without `multiStep` forces `build` when the LLM said `plan`. Overlay does not regex align/perfect.
+- App `pipelineDeps` injects `runEnhancer` / `runJudge` instead of passthrough stubs. Valid `enhance.command` still skips `requestCommand`.
+
 ## 2026-08-26 — Ask pending + keep live scene when pipeline does not write
 
 - `applyTurn.ask` (deictic empty selection, host color/split) now returns a synthesized `PendingAsk`, so App opens ClarifyPanel instead of toast-only.

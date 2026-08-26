@@ -17,7 +17,7 @@ If you edited code and skipped `CHANGELOG.md`, the change is incomplete. If you 
 
 ## Product (this slice)
 
-Voice-driven **architecture board**. Speak or type a short command. Groq Whisper transcribes. The host `runPipeline` orchestrator then runs injectable enhance → judge → command/build roles. Production still passthrough-enhances and always sends remaining commands to OmniRoute OpenCode Go DeepSeek (no keyword table). The write path is an `arch-scene/v1` scene (`diagram.arch.json` in `localStorage`): the agent patches semantics; the kernel owns pins, sizes, and routes. Humans draw, select, and drag on an SVG board.
+Voice-driven **architecture board**. Speak or type a short command. Groq Whisper transcribes. The host `runPipeline` orchestrator then runs injectable enhance → judge → command/build roles. Production injects `runEnhancer` and `runJudge` (OmniRoute JSON; host `bindReferents` after the enhancer). Remaining commands without a valid `enhance.command` still go to OmniRoute OpenCode Go DeepSeek (no keyword table). The write path is an `arch-scene/v1` scene (`diagram.arch.json` in `localStorage`): the agent patches semantics; the kernel owns pins, sizes, and routes. Humans draw, select, and drag on an SVG board.
 
 Command JSON `{op, args, confidence, say}` is still the LLM output for the original ops. The kernel maps those ops onto the scene. Questions, undo, asks, and paste/zoom are host channels and must not dirty the file SHA. Clarifications use `ClarifyPanel`, not toast-only.
 
@@ -33,7 +33,7 @@ Command JSON `{op, args, confidence, say}` is still the LLM output for the origi
 
 ## Do
 
-- Typed and spoken commands go through `runPipeline` (`src/agent/pipeline/orchestrator.ts`) except host undo. Production injects passthrough enhance + judge `route: "command"` + `resolveCommand`/`requestIntent` so align left still hits OmniRoute. Do not add a keyword/regex shortcut for align/perfect/etc.
+- Typed and spoken commands go through `runPipeline` (`src/agent/pipeline/orchestrator.ts`) except host undo. Production injects `runEnhancer` + `runJudge` + `resolveCommand`/`requestIntent`. Valid `enhance.command` skips `requestCommand`. Do not add a keyword/regex shortcut for align/perfect/etc. Host `bindReferents` runs after the enhancer LLM. Judge never defaults to `plan` on LLM failure.
 - Capture `sceneHash` at pipeline start. If `getLiveHash()` / `liveHash` differs before apply → no write, say `"Board changed — try again."`. Abort or 500 from a role → no write, unknown.
 - Pipeline asks set `pendingAsk` and `ClarifyPanel` (including deictic/host `applyTurn.ask`). At most one `status: "ask"` per `runPipeline` invocation. Disable Run / Talk / Undo (and ignore ⌘Z) while the pipeline is running (not idle/asking).
 - Commit the pipeline scene with `sceneAfterPipeline(live, out)`: only `wrote` results replace the live board.
@@ -62,6 +62,7 @@ Command JSON `{op, args, confidence, say}` is still the LLM output for the origi
 ```
 src/                 Harness UI + STT + intent
 src/agent/pipeline/  runPipeline session + orchestrator (injectable roles)
+src/agent/roles/     runEnhancer / runJudge / bindReferents (OmniRoute JSON)
 src/agent/edit/      applyEditPlan tools
 src/scene/           arch-scene/v1 kernel (validate, passes, constraints, turn)
 src/canvas/          SVG board (human draw / select / drag)

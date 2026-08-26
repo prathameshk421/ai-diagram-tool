@@ -14,6 +14,8 @@ import type {
   PipelineStage,
   PipelineTrace,
 } from "./agent/pipeline/session";
+import { runEnhancer } from "./agent/roles/runEnhancer";
+import { runJudge } from "./agent/roles/runJudge";
 import { resolveCommand } from "./intent/resolveCommand";
 import { requestIntent } from "./intent/omnirouteClient";
 import { type Command, unknownCommand } from "./intent/types";
@@ -140,12 +142,8 @@ export default function App() {
   function pipelineDeps(): PipelineDeps {
     const currentSettings = settingsRef.current;
     return {
-      enhance: async ({ transcript: text }) => ({
-        status: "ready",
-        summary: text,
-        targetQueries: [],
-      }),
-      judge: async () => ({ route: "command" as const, reason: "default" }),
+      enhance: (input) => runEnhancer({ settings: currentSettings, ...input }),
+      judge: (input) => runJudge({ settings: currentSettings, ...input }),
       requestCommand: (t, n, sel) =>
         resolveCommand(t, n, currentSettings, requestIntent, sel),
     };
