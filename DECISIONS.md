@@ -1,6 +1,6 @@
-# Decisions
+# DECISIONS
 
-Why we chose what we chose. Add a section when something non-obvious is decided.
+**This file is for the agent.** Record why a stack, library, test, or design was chosen. Add a section whenever you decide something non-obvious.
 
 ## Product domain
 

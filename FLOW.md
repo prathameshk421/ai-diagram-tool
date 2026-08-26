@@ -1,6 +1,6 @@
-# Flow
+# FLOW
 
-How the web app is supposed to run. Update this when the path between UI, API, and data changes.
+**This file is for the agent.** Describe how the web app actually runs. Update it whenever the path between UI, API, and data changes.
 
 ## Processes (dev)
 

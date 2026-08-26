@@ -9,8 +9,8 @@ Voice-assisted Excalidraw for **software architecture** diagrams. Sketch, select
 | `frontend/` | React + Vite UI (canvas + toolbar + voice) |
 | `backend/` | FastAPI (`/api/health`, scene stubs) |
 | `docs/features.md` | Product contract |
-| `agent.md` | Rules for coding agents |
-| `ChangeLog.md` / `Decisions.md` / `Flow.md` | What changed, why, how it runs |
+| `AGENTS.md` | Rules for coding agents |
+| `CHANGELOG.md` / `DECISIONS.md` / `FLOW.md` | Agent-owned: what changed, why, how it runs |
 
 ## Dev
 
