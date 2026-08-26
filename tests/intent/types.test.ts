@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  BARE_ALIGN_SAY,
   FLASH_MODEL,
+  MISSING_OMNIROUTE_SAY,
   PRO_MODEL,
   isCommand,
   parseCommandJson,
@@ -68,8 +68,8 @@ describe("isCommand", () => {
   });
 });
 
-describe("bare-align copy", () => {
-  it("is a distinct hint", () => {
-    expect(BARE_ALIGN_SAY).toMatch(/align left/);
+describe("missing OmniRoute copy", () => {
+  it("asks for a key instead of a keyword fallback", () => {
+    expect(MISSING_OMNIROUTE_SAY).toMatch(/OmniRoute API key/);
   });
 });

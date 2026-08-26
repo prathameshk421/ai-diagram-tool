@@ -1,6 +1,6 @@
 # Agent-path implementation plan
 
-Voice → Groq Whisper → structured `Command` JSON. OmniRoute OpenCode Go DeepSeek only on keyword miss. **No drawing surface in this slice.**
+Voice → Groq Whisper → structured `Command` JSON. OmniRoute OpenCode Go DeepSeek interprets **every** command. **No keyword table. No drawing surface in this slice.**
 
 **Verdict: FULL GO** for the agent path. Canvas, geometry, and scene mutation are a later harness: agents will call tools against an agent-optimized scene model, not a raw editor dump. This file freezes the Command contract those tools will use.
 
@@ -13,7 +13,7 @@ A junior engineer should be able to implement this file top-to-bottom without in
 1. `"thinking": { "type": "disabled" }` on every intent body. Never `thinking: false`. HTTP 400 → omit `thinking` once. No other retries.
 2. Model UI is a Flash / Pro `<select>`. DeepSeek Flash → `opencode-go/deepseek-v4-flash`; DeepSeek Pro → `opencode-go/deepseek-v4-pro`.
 3. Default model is flash. Pro changes `model` only.
-4. Keywords first. Voice and type-in call `resolveCommand`. OmniRoute only if `op === "unknown"` **and** `confidence === 0` **and** OmniRoute key is set. Bare align/distribute skip LLM.
+4. Pure AI. Voice and type-in call `resolveCommand`, which always POSTs `/api/intent` when OmniRoute URL+key are set. No keyword/regex shortcut. Missing keys → toast.
 5. Same-origin Vite proxy only. No Web Speech. No env-key fallback.
 6. This PR ships STT + LLM + harness preview. It does **not** ship a board, geometry, or scene persist.
 7. STT = Groq `whisper-large-v3-turbo` via `POST /api/transcribe`, `verbose_json`. Empty text or `no_speech_prob >= 0.6` → skip LLM.
@@ -21,7 +21,7 @@ A junior engineer should be able to implement this file top-to-bottom without in
 9. Click-to-toggle Talk only. Clip **300ms–15s**. No hold-to-talk.
 10. LLM never emits coordinates, ids, or scene patches. Payload is `{ transcript, selectionCount }`. `selectionCount` is a harness number field until a canvas exists.
 11. Settings persist `localStorage` key `ai-diagram-tool:settings` only.
-12. Groq/OmniRoute down = toast + keyword/type-in floor. Do not cut STT/LLM code.
+12. Groq/OmniRoute down = toast + unknown. Do not cut STT/LLM code. Do not add a keyword floor.
 13. Invalid LLM / coords / `confidence < 0.45` → unknown. Parse `choices[0].message.content` only.
 14. We do **not** ship OpenCode. User wires OpenCode Go DeepSeek in the OmniRoute dashboard.
 15. English only. Command ops: perfect, align, distribute, snap, bigger, smaller, equalize, connect, rotate, unknown.
@@ -34,8 +34,8 @@ A junior engineer should be able to implement this file top-to-bottom without in
 |---|---|---|
 | A1 | Keys live in Settings only. Proxy must not read env. | Settings only |
 | A2 | Default OmniRoute URL | `http://localhost:20128` (no trailing slash) |
-| A6 | Align/distribute with no axis | refuse + hint; skip LLM |
-| A9 | LLM miss/invalid/timeout after keywords already ran | unknown; do not re-run parser |
+| A6 | Align/distribute with no axis | LLM returns unknown + hint; do not invent an axis |
+| A9 | LLM miss/invalid/timeout | unknown; do not fall back to regex |
 | A11 | Voice and type-in | same `resolveCommand` |
 | A13 | `/api/intent` forwards to Settings URL | local demo; strip trailing slash; no allowlist |
 | A14 | Test runner | Vitest. No Playwright |
@@ -69,15 +69,13 @@ src/voice/transcribeClient.ts
 src/intent/types.ts
 src/intent/systemPrompt.ts
 src/intent/omnirouteClient.ts
-src/intent/keywordParser.ts
 src/intent/resolveCommand.ts
 src/settings/store.ts
 server/proxy.ts
-tests/intent/keywordParser.test.ts
 tests/intent/resolveCommand.test.ts
 ```
 
-**Do not create:** `src/geometry/**`, `src/persist/scene.ts`, canvas editor packages, Web Speech, OpenCode config, Docker.
+**Do not create:** `src/geometry/**`, `src/persist/scene.ts`, canvas editor packages, Web Speech, keyword parser, OpenCode config, Docker.
 
 ### Scaffold
 
@@ -111,11 +109,8 @@ Scripts: `"dev": "vite"`, `"build": "tsc -b && vite build"`, `"preview": "vite p
 4. verbose_json. Empty text or no_speech_prob >= 0.6 → unknown Command. Skip OmniRoute.
    Else show transcript.
 5. resolveCommand(text, selectionCount, settings)
-   a. keywordParser ALWAYS FIRST
-   b. if op !== "unknown" → that Command (no LLM)
-   c. if unknown AND confidence === 0.8 (bare align/distribute) → skip LLM
-   d. if unknown AND confidence === 0 AND OmniRoute URL+key:
-        POST /api/intent
+   a. if OmniRoute URL or key empty → unknown toast (no regex)
+   b. else POST /api/intent (including "align left")
         400 → omit thinking once
         parse choices[0].message.content
         invalid / coords / confidence < 0.45 → unknown
@@ -218,30 +213,9 @@ When a canvas exists, each `op` becomes a tool with the same args. The scene rep
 
 ---
 
-## 7. Keyword parser
+## 7. Intent (always LLM)
 
-Normalize: trim, lowercase, collapse whitespace, strip punctuation. First hit wins. Hit `confidence: 0.8`. True miss `confidence: 0`.
-
-| Test | Command |
-|---|---|
-| perfect + circle/ellipse | perfect ellipse |
-| make rectangle/box | perfect rectangle |
-| diamond + perfect/make | perfect diamond |
-| make a line | perfect line |
-| perfect / clean up | perfect auto |
-| align left | align left |
-| align right / top / bottom | matching edge |
-| center horizontally | align centerH |
-| center vertically | align centerV |
-| `/align/` (bare) | unknown, confidence 0.8, hint |
-| distribute vertical | distribute v |
-| `/distribut\|space .*even/` | unknown, confidence 0.8, hint (do not invent `h`) |
-| snap | snap |
-| same width / height / size | equalize |
-| bigger / smaller | bigger / smaller |
-| connect | connect |
-| rotate | rotate 90 |
-| else | unknown, confidence 0 |
+There is no `keywordParser`. `resolveCommand` only checks that OmniRoute URL+key are set, then calls `requestIntent`.
 
 ---
 
@@ -253,30 +227,30 @@ Normalize: trim, lowercase, collapse whitespace, strip punctuation. First hit wi
 - Voice: `idle` / `listening…` / `transcribing…` / `understanding…` / `no microphone` / `error`
 - Unknown: `Didn’t catch that. Try: perfect this, align left, snap to grid.`
 - Missing Groq: `Add a Groq API key in Settings.`
+- Missing OmniRoute: `Add an OmniRoute API key in Settings.`
 - Groq fail: `Couldn’t transcribe. Check the Groq key in Settings.`
 - Mic: `Microphone blocked. Allow mic access.`
-- Bare align: `Didn’t catch that. Try: align left, right, top, bottom, or centers.`
 
 ---
 
 ## 9. Implementation order
 
 1. Docs + `types.ts` + `systemPrompt.ts` + README.
-2. Harness chrome: Settings, type-in, CommandPreview (keywords only).
+2. Harness chrome: Settings, type-in, CommandPreview.
 3. `/api/transcribe` + Talk.
-4. `/api/intent` + keywords-first `resolveCommand`.
+4. `/api/intent` + LLM-only `resolveCommand`.
 
 ---
 
 ## 10. Verification
 
-- `npm test`: one assert per keyword row + `"ALIGN LEFT!!!"` → align left; `"please perfectly this"` → perfect auto; `"draw me aws"` → unknown. `resolveCommand` does not call OmniRoute on a hit or bare align. Payload includes `thinking: { type: "disabled" }` and omits `response_format`.
+- `npm test`: `resolveCommand` calls OmniRoute for `"align left"` when keyed; empty key toasts and does not fetch. Payload includes `thinking: { type: "disabled" }` and omits `response_format`.
 - curl missing Groq key → 401 with `GROQ_API_KEY` set in the shell.
-- Browser: type-in shows JSON; Talk with empty Groq key does not hit Groq; with keys, “align left” skips `/api/intent`; paraphrase hits Flash; Pro changes `model`; OmniRoute down on a miss → unknown.
+- Browser: type-in with keys hits `/api/intent`; Talk with empty Groq key does not hit Groq; OmniRoute down → unknown.
 - `package.json` has no canvas editor dependency.
 
 ---
 
 ## 11. Out of scope
 
-Drawing surface, geometry, scene persist, undo on a board, vision, TTS, whole-diagram generation, OpenCode CLI, OmniRoute STT, Web Speech, hold-to-talk, env-key proxy, hosted deploy, tool-calling loops against a live canvas, free-text model field.
+Drawing surface, geometry, scene persist, undo on a board, vision, TTS, whole-diagram generation, OpenCode CLI, OmniRoute STT, Web Speech, keyword/regex intent, hold-to-talk, env-key proxy, hosted deploy, tool-calling loops against a live canvas, free-text model field.

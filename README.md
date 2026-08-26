@@ -1,13 +1,13 @@
 # ai-diagram-tool
 
-Voice-driven architecture-diagram **agent path**: Groq Whisper transcribes; keywords then OmniRoute OpenCode Go DeepSeek emit a closed Command JSON. No drawing surface in this slice.
+Voice-driven architecture-diagram **agent path**: Groq Whisper transcribes; OmniRoute OpenCode Go DeepSeek always interprets the text and emits closed Command JSON. No keyword table. No drawing surface in this slice.
 
 - Feature contract: [docs/features.md](docs/features.md)
 - Implementation plan: [docs/implementation-plan.md](docs/implementation-plan.md)
 
 **This slice ships:** harness UI + Groq STT + OmniRoute intent. A later canvas will consume the same Command as agent tools against an agent-optimized scene.
 
-Keys are pasted in Settings. No env-key fallback. No Web Speech. Thinking is off. Keywords first.
+Keys are pasted in Settings. No env-key fallback. No Web Speech. Thinking is off. Every command hits the LLM.
 
 ## Run
 
@@ -20,7 +20,7 @@ npm run dev
 
 `npm run test:live` probes Groq `/openai/v1/models` and OmniRoute `/api/rate-limits` first, then makes **one** Whisper request and **one** chat completion. It does not retry HTTP 429.
 
-Open `http://localhost:5173`. Paste keys in Settings. Type `align left` to see Command JSON without any keys.
+Open `http://localhost:5173`. Paste Groq + OmniRoute keys in Settings. Type `align left` to see Command JSON from DeepSeek.
 
 ## Settings
 
