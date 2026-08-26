@@ -55,7 +55,7 @@ export function applyJsonPatch(scene: Scene, ops: JsonPatchOp[]): Scene {
       throw new AgentWriteError(`invalid array index '-' in ${op.path}`);
     }
     if (
-      (op.op === "replace" || op.op === "remove") &&
+      (op.op === "add" || op.op === "replace" || op.op === "remove") &&
       parts.length === 1 &&
       (parts[0] === "nodes" || parts[0] === "edges")
     ) {

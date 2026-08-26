@@ -2,6 +2,12 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — applyEditPlan review: add wipe, connect ortho, id clash
+
+- JSON Patch `add` of whole `/nodes` or `/edges` is rejected (same as replace/remove).
+- Desugared `connect` passes `route: "ortho"` so Command behavior matches the old adapter.
+- `add_node` errors when the proposed id is already in nodes/edges/groups/ink (no clobber, pin preserved).
+
 ## 2026-08-26 — Closed applyEditPlan scene edit API
 
 - Agent writes go through typed tools (`src/agent/edit/`) batched by `applyEditPlan`. Failed calls and `compile()` throws roll back to the original scene (SHA unchanged).

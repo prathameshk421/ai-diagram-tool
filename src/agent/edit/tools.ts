@@ -1,5 +1,5 @@
 import { defaultNode } from "../../scene/empty";
-import { nextId } from "../../scene/ids";
+import { idTaken, nextId } from "../../scene/ids";
 import { compile } from "../../scene/kernel";
 import { bumpSize } from "../../scene/passes";
 import { AgentWriteError } from "../../scene/patch";
@@ -192,6 +192,9 @@ function addNode(
   const id = idArg ?? nextId(scene, "n_");
   if (!ID_PATTERN.test(id)) {
     return fail("INVALID_ID", `invalid node id ${id}`);
+  }
+  if (idTaken(scene, id)) {
+    return fail("ID_TAKEN", `id already exists: ${id}`);
   }
   if (scene.meta.strict && !namedInTranscript(id, spec.label, ctx.transcript)) {
     return {

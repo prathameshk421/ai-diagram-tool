@@ -36,7 +36,12 @@ export function desugarCommand(command: Command, scene?: Scene): EditToolCall[] 
         ? scene.selection.filter((id) => id in scene.nodes)
         : [];
       if (nodes.length >= 2) {
-        return [{ tool: "add_edge", args: { from: nodes[0], to: nodes[1] } }];
+        return [
+          {
+            tool: "add_edge",
+            args: { from: nodes[0], to: nodes[1], props: { route: "ortho" } },
+          },
+        ];
       }
       return [{ tool: "add_edge", args: { from: "", to: "" } }];
     }

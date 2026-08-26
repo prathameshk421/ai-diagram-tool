@@ -328,3 +328,82 @@ describe("unpin", () => {
     expect("y" in result.scene.nodes.api).toBe(false);
   });
 });
+
+describe("patch cannot wipe /nodes or /edges via add", () => {
+  it("rejects add of whole /nodes or /edges", () => {
+    const scene = apiDbScene();
+    expect(() =>
+      applyJsonPatch(scene, [{ op: "add", path: "/nodes", value: {} }]),
+    ).toThrow(AgentWriteError);
+    expect(Object.keys(scene.nodes).sort()).toEqual(["api", "db"]);
+    expect(() =>
+      applyJsonPatch(scene, [{ op: "add", path: "/edges", value: {} }]),
+    ).toThrow(AgentWriteError);
+    expect(scene.edges.api_to_db).toBeDefined();
+  });
+});
+
+describe("connect desugars to ortho", () => {
+  it("preserves Command connect route ortho", () => {
+    const scene = apiDbScene();
+    scene.selection = ["api", "db"];
+    const command: Command = {
+      op: "connect",
+      args: {},
+      confidence: 0.9,
+      say: "Connected.",
+    };
+    const calls = desugarCommand(command, scene);
+    expect(calls).toEqual([
+      {
+        tool: "add_edge",
+        args: { from: "api", to: "db", props: { route: "ortho" } },
+      },
+    ]);
+    const next = applyCommand(scene, command);
+    const added = Object.keys(next.edges).filter((id) => !(id in scene.edges));
+    expect(added).toHaveLength(1);
+    expect(next.edges[added[0]].from).toBe("api");
+    expect(next.edges[added[0]].to).toBe("db");
+    expect(next.edges[added[0]].route).toBe("ortho");
+  });
+});
+
+describe("add_node does not overwrite an existing id", () => {
+  it("errors and does not write when the id is already taken", () => {
+    const scene = apiDbScene();
+    const pin = { ...scene.nodes.api.pin! };
+    const before = sceneHash(scene);
+    const result = applyEditPlan(
+      scene,
+      [
+        {
+          tool: "add_node",
+          args: { id: "api", spec: { label: "Clobber", kind: "service" } },
+        },
+      ],
+      { transcript: "add api" },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.wrote).toBe(false);
+    expect(sceneHash(result.scene)).toBe(before);
+    expect(result.scene.nodes.api.label).toBe("API");
+    expect(result.scene.nodes.api.pin).toEqual(pin);
+    expect(result.errors.length).toBeGreaterThan(0);
+
+    const edgeClash = applyEditPlan(
+      scene,
+      [
+        {
+          tool: "add_node",
+          args: { id: "api_to_db", spec: { label: "EdgeId", kind: "service" } },
+        },
+      ],
+      { transcript: "add api_to_db" },
+    );
+    expect(edgeClash.ok).toBe(false);
+    expect(edgeClash.wrote).toBe(false);
+    expect(sceneHash(edgeClash.scene)).toBe(before);
+    expect(edgeClash.scene.edges.api_to_db).toBeDefined();
+  });
+});
