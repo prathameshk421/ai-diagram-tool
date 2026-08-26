@@ -1,0 +1,13 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: #111318;
+  color: #eceef2;
+}
+
+* {
+  box-sizing: border-box;
+}

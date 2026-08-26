@@ -41,3 +41,7 @@ export GROQ_API_KEY=must-not-be-used
 curl -sS http://localhost:5173/api/transcribe
 # {"error":"missing_groq_key"}
 ```
+
+## Later layout (from `main`, not this slice)
+
+`frontend/`, `backend/`, and `firebase/` are a later canvas / hosting sketch. They are **not** the running app. Do not `cd frontend` or use Web Speech for this slice. The current app is the repo-root Vite harness above.
