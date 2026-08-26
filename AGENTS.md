@@ -35,7 +35,8 @@ Command JSON `{op, args, confidence, say}` is still the LLM output for the origi
 
 - Typed and spoken commands go through `runPipeline` (`src/agent/pipeline/orchestrator.ts`) except host undo. Production injects passthrough enhance + judge `route: "command"` + `resolveCommand`/`requestIntent` so align left still hits OmniRoute. Do not add a keyword/regex shortcut for align/perfect/etc.
 - Capture `sceneHash` at pipeline start. If `getLiveHash()` / `liveHash` differs before apply → no write, say `"Board changed — try again."`. Abort or 500 from a role → no write, unknown.
-- Pipeline asks set `pendingAsk` and `ClarifyPanel`. At most one `status: "ask"` per `runPipeline` invocation. Disable Run / Talk / Undo (and ignore ⌘Z) while the pipeline is running (not idle/asking).
+- Pipeline asks set `pendingAsk` and `ClarifyPanel` (including deictic/host `applyTurn.ask`). At most one `status: "ask"` per `runPipeline` invocation. Disable Run / Talk / Undo (and ignore ⌘Z) while the pipeline is running (not idle/asking).
+- Commit the pipeline scene with `sceneAfterPipeline(live, out)`: only `wrote` results replace the live board.
 - Send `"thinking": { "type": "disabled" }`. Never `thinking: false`. HTTP 400 → omit `thinking` once.
 - Reject coordinate keys from the LLM and from agent JSON Patch (`pin.x`, `width`, `height`, `ink.points`).
 - Empty transcript or `no_speech_prob >= 0.6` skips intent.

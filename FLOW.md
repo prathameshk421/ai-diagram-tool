@@ -30,7 +30,7 @@ Browser  :5173  →  Vite (repo root)
 7. Remaining commands: production passthrough `enhance` + `judge` `route: "command"` + `resolveCommand` → `POST /api/intent` when OmniRoute URL+key are set. Payload: `{ transcript, selectionCount, selection }`. No keyword table.
 8. Missing OmniRoute key → toast. No regex fallback.
 9. Before apply, if `getLiveHash()` ≠ start `sceneHash` → no write (`Board changed — try again.`). Role 500/abort → no write, unknown.
-10. `applyTurn` maps Command JSON onto the scene through `desugarCommand` + `applyEditPlan` (or a JSON Patch). Questions return an answer and do not write. Pipeline `ask` + `pending` opens **ClarifyPanel** (CommandInput answer mode; Talk transcripts feed the same pending). Toast is not the ask surface.
+10. `applyTurn` maps Command JSON onto the scene through `desugarCommand` + `applyEditPlan` (or a JSON Patch). Questions return an answer and do not write. Pipeline `ask` always carries `pending` (including deictic/host asks) and opens **ClarifyPanel**. Toast is not the ask surface. App applies `sceneAfterPipeline(live, out)` so a no-write result cannot roll back human edits.
 11. Preview shows Command JSON, or Pipeline JSON when `trace.stage !== "idle"`, optional answer, and the **UI** scene copy (`projectForAgent`: no `ink.points`, plus `view`; pins may remain). LLM payloads use `projectForAgentSafe` (pins stripped too).
 12. While stage is running (not idle/asking): Run, Talk, and Undo are disabled; ⌘Z is ignored. Esc cancels. Human draw during ask is allowed.
 

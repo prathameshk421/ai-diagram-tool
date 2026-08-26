@@ -1,13 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { runPipeline } from "../../src/agent/pipeline/orchestrator";
+import {
+  runPipeline,
+  sceneAfterPipeline,
+} from "../../src/agent/pipeline/orchestrator";
 import type {
   EnhancerOutput,
   JudgeOutput,
   PipelineDeps,
+  PipelineOutput,
 } from "../../src/agent/pipeline/session";
 import { TURN_CAPS } from "../../src/agent/pipeline/budgets";
 import type { Command } from "../../src/intent/types";
 import { FLASH_MODEL, UNKNOWN_SAY } from "../../src/intent/types";
+import { cloneJson } from "../../src/scene/clone";
 import { sceneHash } from "../../src/scene/hash";
 import type { Settings } from "../../src/settings/store";
 import { apiDbScene, twoKafkaScene } from "../scene/fixtures";
@@ -186,6 +191,83 @@ describe("runPipeline ask / pending", () => {
     expect(enhance).toHaveBeenCalledTimes(2);
     expect(enhance.mock.calls[0][0].followUpTo).toBeNull();
     expect(enhance.mock.calls[1][0].followUpTo).toBe(pending.id);
+  });
+
+  it("deictic empty-selection command path yields ask and pending", async () => {
+    const scene = apiDbScene();
+    scene.selection = [];
+    const before = sceneHash(scene);
+    const result = await runPipeline(
+      {
+        transcript: "perfect this",
+        scene,
+        settings: keyed,
+        pending: null,
+      },
+      deps({
+        enhance: async () => ({
+          status: "ready",
+          summary: "perfect this",
+          targetQueries: [],
+          command: {
+            op: "perfect",
+            args: { shape: "auto" },
+            confidence: 0.9,
+            say: "Cleaned up.",
+          },
+        }),
+      }),
+    );
+    expect(result.wrote).toBe(false);
+    expect(result.ask).toBe(true);
+    expect(result.pending).not.toBeNull();
+    expect(result.pending?.kind === "selection" || result.pending?.kind === "either").toBe(
+      true,
+    );
+    expect(result.pending?.originalTranscript).toBe("perfect this");
+    expect(result.pending?.sceneHashAtAsk).toBe(before);
+    expect(sceneHash(result.scene)).toBe(before);
+  });
+});
+
+describe("sceneAfterPipeline", () => {
+  it("keeps the live board when the run did not write", () => {
+    const start = apiDbScene();
+    const live = cloneJson(start);
+    live.nodes.api.label = "Gateway";
+    const out: PipelineOutput = {
+      scene: start,
+      wrote: false,
+      ask: false,
+      pending: null,
+      say: "Board changed — try again.",
+      answer: null,
+      command: null,
+      trace: { stage: "idle" },
+      llmCalls: 1,
+    };
+    expect(sceneAfterPipeline(live, out)).toBe(live);
+    expect(sceneAfterPipeline(live, out).nodes.api.label).toBe("Gateway");
+  });
+
+  it("commits out.scene when the run wrote", () => {
+    const start = apiDbScene();
+    const live = cloneJson(start);
+    live.nodes.api.label = "Human";
+    const written = cloneJson(start);
+    written.nodes.api.label = "Aligned";
+    const out: PipelineOutput = {
+      scene: written,
+      wrote: true,
+      ask: false,
+      pending: null,
+      say: "Aligned left.",
+      answer: null,
+      command: alignLeft,
+      trace: { stage: "idle" },
+      llmCalls: 1,
+    };
+    expect(sceneAfterPipeline(live, out)).toBe(written);
   });
 });
 

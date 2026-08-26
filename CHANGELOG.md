@@ -2,6 +2,11 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Ask pending + keep live scene when pipeline does not write
+
+- `applyTurn.ask` (deictic empty selection, host color/split) now returns a synthesized `PendingAsk`, so App opens ClarifyPanel instead of toast-only.
+- `sceneAfterPipeline(live, out)` commits `out.scene` only when `out.wrote`; otherwise the live board (human edits during the run) is kept. App uses this helper.
+
 ## 2026-08-26 — Pipeline orchestrator, session types, ClarifyPanel
 
 - `runPipeline` in `src/agent/pipeline/orchestrator.ts` is the host turn: host channels skip role LLMs; otherwise injectable `enhance` / `judge` / `requestCommand` / optional `build`. Questions, asks, abort, 500, and hash mismatch never write. Valid `enhance.command` skips `requestCommand`.

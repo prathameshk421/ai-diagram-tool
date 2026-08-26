@@ -76,6 +76,68 @@ function newAskId(): string {
   return `ask-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+export function sceneAfterPipeline(
+  live: Scene,
+  out: PipelineOutput,
+): Scene {
+  return out.wrote ? out.scene : live;
+}
+
+function pendingFromAsk(
+  scene: Scene,
+  say: string,
+  transcript: string,
+  startHash: string,
+  kind: PendingAsk["kind"] = "either",
+): PendingAsk {
+  return {
+    id: newAskId(),
+    question: say,
+    kind,
+    candidates: scene.selection.slice(),
+    originalTranscript: transcript,
+    sceneHashAtAsk: startHash,
+  };
+}
+
+function withTurnAsk(
+  turn: {
+    scene: Scene;
+    wrote: boolean;
+    ask: boolean;
+    answer: string | null;
+    say: string;
+  },
+  transcript: string,
+  startHash: string,
+  extras: {
+    command: Command | null;
+    llmCalls: number;
+    enhancedSummary?: string;
+    judgeRoute?: PipelineTrace["judgeRoute"];
+  },
+): PipelineOutput {
+  const pending = turn.ask
+    ? pendingFromAsk(turn.scene, turn.say, transcript, startHash, "selection")
+    : null;
+  return {
+    scene: turn.scene,
+    wrote: turn.wrote,
+    ask: turn.ask,
+    pending,
+    say: turn.say,
+    answer: turn.answer,
+    command: extras.command,
+    trace: {
+      stage: turn.ask ? "asking" : "idle",
+      enhancedSummary: extras.enhancedSummary,
+      judgeRoute: extras.judgeRoute,
+      say: turn.say,
+    },
+    llmCalls: extras.llmCalls,
+  };
+}
+
 export async function runPipeline(
   input: PipelineInput,
   deps: PipelineDeps,
@@ -99,17 +161,10 @@ export async function runPipeline(
       { type: "command", command: unknownCommand() },
       trimmed,
     );
-    return {
-      scene: turn.scene,
-      wrote: turn.wrote,
-      ask: turn.ask,
-      pending: null,
-      say: turn.say,
-      answer: turn.answer,
+    return withTurnAsk(turn, trimmed, sceneHash(scene), {
       command: null,
-      trace: { stage: "idle", say: turn.say },
       llmCalls: 0,
-    };
+    });
   }
 
   const startHash = sceneHash(scene);
@@ -252,22 +307,23 @@ export async function runPipeline(
         });
       }
       const edited = applyEditPlan(scene, built.calls, { transcript: trimmed });
-      return {
-        scene: edited.ok ? edited.scene : scene,
-        wrote: edited.ok && edited.wrote,
-        ask: edited.ask,
-        pending: null,
-        say: edited.ask || !edited.ok ? edited.say : built.say,
-        answer: edited.answer,
-        command: null,
-        trace: {
-          stage: "idle",
+      return withTurnAsk(
+        {
+          scene: edited.ok ? edited.scene : scene,
+          wrote: edited.ok && edited.wrote,
+          ask: edited.ask,
+          answer: edited.answer,
+          say: edited.ask || !edited.ok ? edited.say : built.say,
+        },
+        trimmed,
+        startHash,
+        {
+          command: null,
+          llmCalls,
           enhancedSummary: intent.summary,
           judgeRoute: "build",
-          say: built.say,
         },
-        llmCalls,
-      };
+      );
     }
 
     if (!command) {
@@ -301,22 +357,12 @@ export async function runPipeline(
       { type: "command", command },
       trimmed,
     );
-    return {
-      scene: turn.scene,
-      wrote: turn.wrote,
-      ask: turn.ask,
-      pending: null,
-      say: turn.say,
-      answer: turn.answer,
+    return withTurnAsk(turn, trimmed, startHash, {
       command,
-      trace: {
-        stage: "idle",
-        enhancedSummary: intent.summary,
-        judgeRoute: "command",
-        say: turn.say,
-      },
       llmCalls,
-    };
+      enhancedSummary: intent.summary,
+      judgeRoute: "command",
+    });
   } catch {
     return unknownOut(scene, llmCalls);
   }

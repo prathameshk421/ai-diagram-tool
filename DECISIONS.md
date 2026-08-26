@@ -14,7 +14,7 @@ If `enhance.command` is a valid Command (`confidence >= 0.45`, `op !== unknown`)
 
 Hard LLM cap is `TURN_CAPS.maxLlmCallsComplex` (5). `maxLlmCallsSimple` (2) is the command-path budget when overlay skips judge/requestCommand. Hash gating uses `getLiveHash` / `liveHash` / `nowHash` against the start snapshot so a human draw during the run cancels the write.
 
-Asks are a `PendingAsk` + `ClarifyPanel`, not toast-only. `applyTurn.ask` without pending still toasts (host color/split).
+Asks are a `PendingAsk` + `ClarifyPanel`, not toast-only. `applyTurn.ask` (deictic / color / split) synthesizes pending so the panel always opens. `sceneAfterPipeline(live, out)` is how App commits: only a `wrote` result replaces the live scene, so a hash-gate cancel cannot wipe a concurrent drag.
 
 ## Per-role OmniRoute budgets
 

@@ -7,7 +7,7 @@ import { CommandPreview } from "./chrome/CommandPreview";
 import { ScenePreview } from "./chrome/ScenePreview";
 import { SettingsDrawer } from "./chrome/SettingsDrawer";
 import { StatusBar } from "./chrome/StatusBar";
-import { runPipeline } from "./agent/pipeline/orchestrator";
+import { runPipeline, sceneAfterPipeline } from "./agent/pipeline/orchestrator";
 import type {
   PendingAsk,
   PipelineDeps,
@@ -194,13 +194,26 @@ export default function App() {
       if (out.wrote) {
         historyRef.current.record(text, start, out.scene);
       }
-      setScene(out.scene);
+      const nextScene = sceneAfterPipeline(sceneRef.current, out);
+      setScene(nextScene);
       setCommand(out.command);
       setAnswer(out.answer);
       setTrace(out.trace);
-      if (out.ask && out.pending) {
-        setPendingAsk(out.pending);
-        pendingRef.current = out.pending;
+      const pending =
+        out.pending ??
+        (out.ask
+          ? {
+              id: `ask-${runId}`,
+              question: out.say,
+              kind: "either" as const,
+              candidates: sceneRef.current.selection.slice(),
+              originalTranscript: text,
+              sceneHashAtAsk: sceneHash(start),
+            }
+          : null);
+      if (out.ask && pending) {
+        setPendingAsk(pending);
+        pendingRef.current = pending;
         setStage("asking");
         setVoice("idle");
       } else {
