@@ -641,7 +641,7 @@ Do not mention Web Speech.
 | 2 | Stack *(superseded)* | Was: local-only, Web Speech, keywords, no backend. **Superseded by 11–25.** |
 | 11 | STT | Groq Whisper `whisper-large-v3-turbo`, `POST https://api.groq.com/openai/v1/audio/transcriptions`, proxied at `/api/transcribe`. `language=en`, `temperature=0`, vocab prompt. Filename must be `.webm`/`.wav`/`.ogg`. |
 | 12 | Intent LLM | OmniRoute `POST {base}/v1/chat/completions`. User configures OpenCode Go DeepSeek + OmniRoute key in OmniRoute dashboard. App Settings stores OmniRoute URL, key, and model (Flash default / Pro override). We do not ship OpenCode. |
-| 13 | Keywords first | Parser always runs first. OmniRoute only on `unknown` when the OmniRoute key is set. |
+| 13 | Keywords first | Parser always runs first. OmniRoute only on `unknown` with `confidence === 0` when the OmniRoute key is set. Bare align/distribute skip LLM. Type-in uses `resolveCommand`. |
 | 14 | Command JSON | `{ op, args, confidence, say }`. Geometry consumes this only. Reject coordinate-like keys. |
 | 15 | Keys | Settings drawer only. No env-key fallback. Toolbar ops must work with empty keys. STT + LLM still ship. |
 | 16 | Thinking | Always `{ "type": "disabled" }`. Never `thinking: false`. HTTP 400 → omit once. Pro is GO because thinking is off. |
