@@ -1,6 +1,6 @@
 # ai-diagram-tool
 
-Voice-driven **architecture board**: Groq Whisper transcribes; OmniRoute OpenCode Go DeepSeek always interprets the text and emits closed Command JSON. A kernel applies that onto one `arch-scene/v1` scene. Humans draw on an SVG board. No keyword table. No Excalidraw. The model never invents coordinates.
+Voice-driven **architecture board**: Groq Whisper transcribes; a host pipeline (enhancer → judge → Command JSON **or** build/plan tools) talks to OmniRoute OpenCode Go DeepSeek. `applyEditPlan` writes the `arch-scene/v1` scene; the kernel owns geometry. Humans draw on an SVG board. No keyword table. No Excalidraw. The model never invents coordinates. Verify is scene predicates, not a vision model.
 
 - Feature contract: [docs/features.md](docs/features.md)
 - Implementation plan (STT/intent): [docs/implementation-plan.md](docs/implementation-plan.md)

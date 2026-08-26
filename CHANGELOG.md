@@ -2,6 +2,11 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — FLOW user-loop + README match the pipeline
+
+- FLOW numbered step 7 now includes the `enhance.command` skip and build/plan routes, not only `resolveCommand`.
+- README intro matches Command JSON fast path plus typed tools and predicate verify.
+
 ## 2026-08-26 — Agent pipeline feature contract and flow
 
 - `docs/features.md`: agent path is enhancer → judge → Command JSON or build/plan tools → `applyEditPlan`. F3 is a pipeline (`projectForAgentSafe` for structural roles; verify is predicates). F4 structural ops are live via build/plan. F5 distinguishes `projectForAgent` vs `projectForAgentSafe`. Vague prompts may ask; Redis insert splices with empty selection if the model names the DB. Demos add ClarifyPanel deictic ask. Decision log rows 24–27. WONTFIX §6 unchanged (no vision, no whole-board gen, no keyword table).
