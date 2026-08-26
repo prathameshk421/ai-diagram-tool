@@ -13,9 +13,12 @@ Keys are pasted in Settings. No env-key fallback. No Web Speech. Thinking is off
 
 ```bash
 npm install
-npm test
+npm test          # unit tests; no API keys
+npm run test:live # requires GROQ_API_KEY and OMNIROUTE_API_KEY
 npm run dev
 ```
+
+`npm run test:live` probes Groq `/openai/v1/models` and OmniRoute `/api/rate-limits` first, then makes **one** Whisper request and **one** chat completion. It does not retry HTTP 429.
 
 Open `http://localhost:5173`. Paste keys in Settings. Type `align left` to see Command JSON without any keys.
 

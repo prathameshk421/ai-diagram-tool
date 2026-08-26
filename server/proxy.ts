@@ -39,6 +39,24 @@ function stripSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
+/** Groq remaining-requests is RPD; retry-after is only present on 429. */
+const RATE_LIMIT_HEADERS = [
+  "retry-after",
+  "x-ratelimit-limit-requests",
+  "x-ratelimit-remaining-requests",
+  "x-ratelimit-reset-requests",
+  "x-ratelimit-limit-tokens",
+  "x-ratelimit-remaining-tokens",
+  "x-ratelimit-reset-tokens",
+] as const;
+
+function copyRateLimitHeaders(from: Headers, res: ServerResponse): void {
+  for (const name of RATE_LIMIT_HEADERS) {
+    const value = from.get(name);
+    if (value) res.setHeader(name, value);
+  }
+}
+
 async function handleTranscribe(
   req: IncomingMessage,
   res: ServerResponse,
@@ -66,6 +84,7 @@ async function handleTranscribe(
       "Content-Type",
       upstream.headers.get("content-type") || "application/json",
     );
+    copyRateLimitHeaders(upstream.headers, res);
     res.end(text);
   } catch (err) {
     const aborted =
@@ -118,6 +137,7 @@ async function handleIntent(
       "Content-Type",
       upstream.headers.get("content-type") || "application/json",
     );
+    copyRateLimitHeaders(upstream.headers, res);
     res.end(text);
   } catch (err) {
     const aborted =

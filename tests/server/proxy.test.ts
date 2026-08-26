@@ -21,6 +21,7 @@ function makeReq(opts: {
 
 function makeRes(): ServerResponse & {
   bodyText: () => string;
+  headers: Record<string, string>;
 } {
   const chunks: string[] = [];
   const res = {
@@ -36,7 +37,10 @@ function makeRes(): ServerResponse & {
     },
     bodyText: () => chunks.join(""),
   };
-  return res as unknown as ServerResponse & { bodyText: () => string };
+  return res as unknown as ServerResponse & {
+    bodyText: () => string;
+    headers: Record<string, string>;
+  };
 }
 
 describe("proxy auth (no live APIs)", () => {
@@ -167,5 +171,38 @@ describe("proxy auth (no live APIs)", () => {
     expect(forwarded.thinking).toEqual({ type: "disabled" });
     expect(forwarded.response_format).toBeUndefined();
     expect(JSON.stringify(forwarded)).not.toMatch(/"thinking":false/);
+  });
+
+  it("forwards Groq rate-limit headers so callers can stop before 429", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        "content-type": "application/json",
+        "x-ratelimit-remaining-requests": "1999",
+        "retry-after": "2",
+      }),
+      text: async () => JSON.stringify({ text: "ok" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const res = makeRes();
+    await diagramApi(
+      makeReq({
+        method: "POST",
+        url: "/api/transcribe",
+        headers: {
+          authorization: "Bearer gsk_test",
+          "content-type": "multipart/form-data; boundary=x",
+        },
+        body: "ignored",
+      }),
+      res,
+      () => {
+        throw new Error("should not fall through");
+      },
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["x-ratelimit-remaining-requests"]).toBe("1999");
+    expect(res.headers["retry-after"]).toBe("2");
   });
 });
