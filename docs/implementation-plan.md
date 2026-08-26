@@ -1,0 +1,282 @@
+# Agent-path implementation plan
+
+Voice → Groq Whisper → structured `Command` JSON. OmniRoute OpenCode Go DeepSeek only on keyword miss. **No drawing surface in this slice.**
+
+**Verdict: FULL GO** for the agent path. Canvas, geometry, and scene mutation are a later harness: agents will call tools against an agent-optimized scene model, not a raw editor dump. This file freezes the Command contract those tools will use.
+
+A junior engineer should be able to implement this file top-to-bottom without inventing product behavior.
+
+---
+
+## Locked (do not reopen)
+
+1. `"thinking": { "type": "disabled" }` on every intent body. Never `thinking: false`. HTTP 400 → omit `thinking` once. No other retries.
+2. Model UI is a Flash / Pro `<select>`. DeepSeek Flash → `opencode-go/deepseek-v4-flash`; DeepSeek Pro → `opencode-go/deepseek-v4-pro`.
+3. Default model is flash. Pro changes `model` only.
+4. Keywords first. Voice and type-in call `resolveCommand`. OmniRoute only if `op === "unknown"` **and** `confidence === 0` **and** OmniRoute key is set. Bare align/distribute skip LLM.
+5. Same-origin Vite proxy only. No Web Speech. No env-key fallback.
+6. This PR ships STT + LLM + harness preview. It does **not** ship a board, geometry, or scene persist.
+7. STT = Groq `whisper-large-v3-turbo` via `POST /api/transcribe`, `verbose_json`. Empty text or `no_speech_prob >= 0.6` → skip LLM.
+8. Intent omits `response_format`. Client abort: STT **8s**, intent **4s**. Proxy 30s / 60s → `504 {"error":"upstream_timeout"}`.
+9. Click-to-toggle Talk only. Clip **300ms–15s**. No hold-to-talk.
+10. LLM never emits coordinates, ids, or scene patches. Payload is `{ transcript, selectionCount }`. `selectionCount` is a harness number field until a canvas exists.
+11. Settings persist `localStorage` key `ai-diagram-tool:settings` only.
+12. Groq/OmniRoute down = toast + keyword/type-in floor. Do not cut STT/LLM code.
+13. Invalid LLM / coords / `confidence < 0.45` → unknown. Parse `choices[0].message.content` only.
+14. We do **not** ship OpenCode. User wires OpenCode Go DeepSeek in the OmniRoute dashboard.
+15. English only. Command ops: perfect, align, distribute, snap, bigger, smaller, equalize, connect, rotate, unknown.
+
+---
+
+## 0. Assumptions
+
+| ID | Assumption | Default |
+|---|---|---|
+| A1 | Keys live in Settings only. Proxy must not read env. | Settings only |
+| A2 | Default OmniRoute URL | `http://localhost:20128` (no trailing slash) |
+| A6 | Align/distribute with no axis | refuse + hint; skip LLM |
+| A9 | LLM miss/invalid/timeout after keywords already ran | unknown; do not re-run parser |
+| A11 | Voice and type-in | same `resolveCommand` |
+| A13 | `/api/intent` forwards to Settings URL | local demo; strip trailing slash; no allowlist |
+| A14 | Test runner | Vitest. No Playwright |
+| A15 | `selectionCount` | harness number input, default `1` |
+
+---
+
+## 1. File tree
+
+```
+package.json
+tsconfig.json
+tsconfig.node.json
+vite.config.ts
+vitest.config.ts
+index.html
+.env.example          # comment-only: keys are Settings, proxy must not read env
+README.md
+docs/features.md
+docs/implementation-plan.md
+src/main.tsx
+src/App.tsx
+src/styles.css
+src/vite-env.d.ts
+src/chrome/StatusBar.tsx
+src/chrome/SettingsDrawer.tsx
+src/chrome/CommandInput.tsx
+src/chrome/CommandPreview.tsx
+src/voice/recorder.ts
+src/voice/transcribeClient.ts
+src/intent/types.ts
+src/intent/systemPrompt.ts
+src/intent/omnirouteClient.ts
+src/intent/keywordParser.ts
+src/intent/resolveCommand.ts
+src/settings/store.ts
+server/proxy.ts
+tests/intent/keywordParser.test.ts
+tests/intent/resolveCommand.test.ts
+```
+
+**Do not create:** `src/geometry/**`, `src/persist/scene.ts`, canvas editor packages, Web Speech, OpenCode config, Docker.
+
+### Scaffold
+
+```bash
+npm create vite@latest . -- --template react-ts
+npm install
+npm install -D vitest
+```
+
+Scripts: `"dev": "vite"`, `"build": "tsc -b && vite build"`, `"preview": "vite preview"`, `"test": "vitest run"`.
+
+`vite.config.ts` mounts `diagramProxyPlugin()` from `server/proxy.ts` on `configureServer` and `configurePreviewServer`.
+
+`.env.example`:
+
+```
+# Keys are pasted in the in-app Settings drawer.
+# The Vite proxy must not read GROQ_API_KEY or OMNIROUTE_API_KEY from the environment.
+```
+
+---
+
+## 2. Data flow
+
+```
+0. selectionCount comes from the harness number input (stub). Do not block STT on it.
+1. Click Talk → MediaRecorder (first supported mime:
+   audio/webm;codecs=opus, audio/webm, audio/ogg, audio/mp4)
+2. Click Stop talking → Blob. Discard if < 300ms. Auto-stop at 15s.
+3. POST /api/transcribe → Groq. Timeout 8s. Retry 429/5xx only, max 2.
+4. verbose_json. Empty text or no_speech_prob >= 0.6 → unknown Command. Skip OmniRoute.
+   Else show transcript.
+5. resolveCommand(text, selectionCount, settings)
+   a. keywordParser ALWAYS FIRST
+   b. if op !== "unknown" → that Command (no LLM)
+   c. if unknown AND confidence === 0.8 (bare align/distribute) → skip LLM
+   d. if unknown AND confidence === 0 AND OmniRoute URL+key:
+        POST /api/intent
+        400 → omit thinking once
+        parse choices[0].message.content
+        invalid / coords / confidence < 0.45 → unknown
+6. Groq fail → toast. No browser-speech fallback.
+7. CommandPreview shows JSON. Do not mutate a scene.
+```
+
+---
+
+## 3. Settings
+
+`localStorage["ai-diagram-tool:settings"]`
+
+| Field | Default | UI |
+|---|---|---|
+| `omnirouteUrl` | `http://localhost:20128` | OmniRoute URL |
+| `omnirouteApiKey` | `""` | OmniRoute API key |
+| `groqApiKey` | `""` | Groq API key |
+| `omnirouteModel` | `opencode-go/deepseek-v4-flash` | `<select>` Flash / Pro |
+
+Help: *Keys stay in this browser. Configure OpenCode Go DeepSeek in the OmniRoute dashboard. This app does not install OpenCode. To use Pro, pick DeepSeek Pro after that model is wired in OmniRoute.*
+
+Save writes and closes. Close discards. Empty keys must Save.
+
+---
+
+## 4. Groq — `POST /api/transcribe`
+
+Never `FormData.append("file", blob)` without a filename extension.
+
+```
+file: utterance.webm | .ogg | .mp4
+model: whisper-large-v3-turbo
+language: en
+temperature: 0
+response_format: verbose_json
+prompt: perfect this, align left, snap to grid, distribute, rotate, connect these
+```
+
+`Authorization: Bearer <settings.groqApiKey>`. Empty → `401 {"error":"missing_groq_key"}`. Do not read `process.env`.
+
+---
+
+## 5. OmniRoute — `POST /api/intent`
+
+Do not call if URL or key empty.
+
+Headers: `Authorization: Bearer <omnirouteApiKey>`, `X-OmniRoute-Base: http://localhost:20128`
+
+```json
+{
+  "model": "opencode-go/deepseek-v4-flash",
+  "temperature": 0,
+  "stream": false,
+  "max_tokens": 200,
+  "thinking": { "type": "disabled" },
+  "messages": [
+    { "role": "system", "content": "<SYSTEM_PROMPT>" },
+    { "role": "user", "content": "{\"transcript\":\"clean this up\",\"selectionCount\":1}" }
+  ]
+}
+```
+
+No `response_format`. No `tools`. No history. `model` from Settings.
+
+System prompt must contain the word `json`, the args table, “never emit coordinates”, and one example:
+
+`"align left" → {"op":"align","args":{"edge":"left"},"confidence":0.95,"say":"Aligned left."}`
+
+---
+
+## 6. Command schema (future agent tools)
+
+```ts
+export type Op =
+  | "perfect" | "align" | "distribute" | "snap"
+  | "bigger" | "smaller" | "equalize" | "connect"
+  | "rotate" | "unknown";
+
+export type Command = {
+  op: Op;
+  args: Record<string, unknown>;
+  confidence: number;
+  say: string;
+};
+```
+
+| op | args |
+|---|---|
+| `perfect` | `{ shape?: "auto"\|"ellipse"\|"rectangle"\|"diamond"\|"line" }` default auto |
+| `align` | `{ edge: "left"\|"right"\|"top"\|"bottom"\|"centerH"\|"centerV" }` required |
+| `distribute` | `{ axis: "h"\|"v" }` required |
+| `snap` / `bigger` / `smaller` / `connect` / `unknown` | `{}` |
+| `equalize` | `{ dim?: "both"\|"width"\|"height" }` default both |
+| `rotate` | `{ degrees?: 90 }` default 90 |
+
+Coordinate-like keys (`x`, `y`, `width`, `height`, `points`) → invalid.
+
+When a canvas exists, each `op` becomes a tool with the same args. The scene representation for that canvas is **not** specified here on purpose: pick an agent-optimized graph later, then bind these tools.
+
+---
+
+## 7. Keyword parser
+
+Normalize: trim, lowercase, collapse whitespace, strip punctuation. First hit wins. Hit `confidence: 0.8`. True miss `confidence: 0`.
+
+| Test | Command |
+|---|---|
+| perfect + circle/ellipse | perfect ellipse |
+| make rectangle/box | perfect rectangle |
+| diamond + perfect/make | perfect diamond |
+| make a line | perfect line |
+| perfect / clean up | perfect auto |
+| align left | align left |
+| align right / top / bottom | matching edge |
+| center horizontally | align centerH |
+| center vertically | align centerV |
+| `/align/` (bare) | unknown, confidence 0.8, hint |
+| distribute vertical | distribute v |
+| `/distribut\|space .*even/` | unknown, confidence 0.8, hint (do not invent `h`) |
+| snap | snap |
+| same width / height / size | equalize |
+| bigger / smaller | bigger / smaller |
+| connect | connect |
+| rotate | rotate 90 |
+| else | unknown, confidence 0 |
+
+---
+
+## 8. UI copy
+
+- Talk / Stop talking
+- Type-in placeholder: `Type a command (e.g. align left)`
+- Selection count label: `Selection count (stub)`
+- Voice: `idle` / `listening…` / `transcribing…` / `understanding…` / `no microphone` / `error`
+- Unknown: `Didn’t catch that. Try: perfect this, align left, snap to grid.`
+- Missing Groq: `Add a Groq API key in Settings.`
+- Groq fail: `Couldn’t transcribe. Check the Groq key in Settings.`
+- Mic: `Microphone blocked. Allow mic access.`
+- Bare align: `Didn’t catch that. Try: align left, right, top, bottom, or centers.`
+
+---
+
+## 9. Implementation order
+
+1. Docs + `types.ts` + `systemPrompt.ts` + README.
+2. Harness chrome: Settings, type-in, CommandPreview (keywords only).
+3. `/api/transcribe` + Talk.
+4. `/api/intent` + keywords-first `resolveCommand`.
+
+---
+
+## 10. Verification
+
+- `npm test`: one assert per keyword row + `"ALIGN LEFT!!!"` → align left; `"please perfectly this"` → perfect auto; `"draw me aws"` → unknown. `resolveCommand` does not call OmniRoute on a hit or bare align. Payload includes `thinking: { type: "disabled" }` and omits `response_format`.
+- curl missing Groq key → 401 with `GROQ_API_KEY` set in the shell.
+- Browser: type-in shows JSON; Talk with empty Groq key does not hit Groq; with keys, “align left” skips `/api/intent`; paraphrase hits Flash; Pro changes `model`; OmniRoute down on a miss → unknown.
+- `package.json` has no canvas editor dependency.
+
+---
+
+## 11. Out of scope
+
+Drawing surface, geometry, scene persist, undo on a board, vision, TTS, whole-diagram generation, OpenCode CLI, OmniRoute STT, Web Speech, hold-to-talk, env-key proxy, hosted deploy, tool-calling loops against a live canvas, free-text model field.

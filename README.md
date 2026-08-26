@@ -1,51 +1,47 @@
 # ai-diagram-tool
 
-Voice-assisted Excalidraw for **software architecture** diagrams. Sketch, select, then perfect/align (buttons or a mic). Sign in with Google to save. Deploy on Firebase Hosting.
+Voice-driven architecture-diagram **agent path**: Groq Whisper transcribes; keywords then OmniRoute OpenCode Go DeepSeek emit a closed Command JSON. No drawing surface in this slice.
 
-## Layout
+- Feature contract: [docs/features.md](docs/features.md)
+- Implementation plan: [docs/implementation-plan.md](docs/implementation-plan.md)
 
-| Path | What |
-|---|---|
-| `frontend/` | React + Vite UI (canvas + toolbar + voice + Google login) |
-| `backend/` | FastAPI (`/api/health` only; not the database) |
-| `firebase/` | Firestore rules + hosting config |
-| `docs/features.md` | Product contract |
-| `AGENTS.md` | Rules for coding agents |
-| `CHANGELOG.md` / `DECISIONS.md` / `FLOW.md` | Agent-owned: what changed, why, how it runs |
+**This slice ships:** harness UI + Groq STT + OmniRoute intent. A later canvas will consume the same Command as agent tools against an agent-optimized scene.
 
-## Dev
+Keys are pasted in Settings. No env-key fallback. No Web Speech. Thinking is off. Keywords first.
 
-UI:
+## Run
 
 ```bash
-cd frontend
-cp .env.example .env   # paste Firebase web config
 npm install
+npm test          # unit tests; no API keys
+npm run test:live # requires GROQ_API_KEY and OMNIROUTE_API_KEY
 npm run dev
 ```
 
-Open http://localhost:5173.
+`npm run test:live` probes Groq `/openai/v1/models` and OmniRoute `/api/rate-limits` first, then makes **one** Whisper request and **one** chat completion. It does not retry HTTP 429.
 
-Optional Python health API:
+Open `http://localhost:5173`. Paste keys in Settings. Type `align left` to see Command JSON without any keys.
+
+## Settings
+
+| Field | Default |
+|---|---|
+| OmniRoute URL | `http://localhost:20128` |
+| OmniRoute API key | empty |
+| Groq API key | empty |
+| LLM model | DeepSeek Flash (`opencode-go/deepseek-v4-flash`) |
+
+Wire OpenCode Go DeepSeek in the OmniRoute dashboard. This app does not install OpenCode.
+
+## curl
 
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+# Missing Groq key → 401 even if GROQ_API_KEY is in the shell
+export GROQ_API_KEY=must-not-be-used
+curl -sS http://localhost:5173/api/transcribe
+# {"error":"missing_groq_key"}
 ```
 
-Vite proxies `/api` to FastAPI. Login and saves go to **Firebase**, not FastAPI.
+## Later layout (from `main`, not this slice)
 
-## Firebase console (once)
-
-1. Create a project, Spark plan is fine for testing.
-2. Enable **Authentication → Google**.
-3. Create **Firestore**.
-4. Add the web app; copy config into `frontend/.env`.
-5. Deploy: `firebase deploy` (Hosting + rules).
-
-## v1 slice
-
-Perfect selected ink, align selected boxes, refuse if nothing is selected, optional English voice keywords, Google login for production saves. See `docs/features.md`.
+`frontend/`, `backend/`, and `firebase/` are a later canvas / hosting sketch. They are **not** the running app. Do not `cd frontend` or use Web Speech for this slice. The current app is the repo-root Vite harness above.

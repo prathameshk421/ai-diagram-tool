@@ -1,0 +1,173 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: #0f1419;
+  color: #e7ecf3;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 1.25rem;
+  box-sizing: border-box;
+  gap: 1rem;
+}
+
+.chrome {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+h1 {
+  font-size: 1.25rem;
+  font-weight: 650;
+  margin: 0;
+}
+
+h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.5rem;
+  color: #9aa8b9;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.command-input {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  border-radius: 8px;
+  border: 1px solid #2a3544;
+  background: #1a222c;
+  color: inherit;
+  padding: 0.55rem 0.75rem;
+}
+
+input,
+select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+button {
+  cursor: pointer;
+  background: #2f6fed;
+  border-color: #2f6fed;
+  white-space: nowrap;
+}
+
+button.secondary {
+  background: #1a222c;
+  border-color: #2a3544;
+}
+
+button.talk.live {
+  background: #c23b4a;
+  border-color: #c23b4a;
+}
+
+.count {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #9aa8b9;
+}
+
+.count input {
+  width: 4.5rem;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  color: #9aa8b9;
+}
+
+.toast {
+  color: #f4d58d;
+}
+
+.preview {
+  flex: 1;
+  min-height: 0;
+  background: #1a222c;
+  border: 1px solid #2a3544;
+  border-radius: 12px;
+  padding: 1rem;
+  overflow: auto;
+}
+
+.preview pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(22rem, 100%);
+  height: 100%;
+  background: #141b22;
+  border-left: 1px solid #2a3544;
+  padding: 1.25rem;
+  box-sizing: border-box;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.drawer label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.help,
+.warn {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin: 0;
+  color: #9aa8b9;
+}
+
+.warn {
+  color: #f4d58d;
+}
+
+.drawer-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}

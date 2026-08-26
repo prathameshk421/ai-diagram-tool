@@ -2,6 +2,13 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Merge main; agent path wins
+
+- Merged `main` (web layout + agent tracking docs).
+- Resolved README / `docs/features.md` for the **agent-path** harness (Groq + OmniRoute, no board). This matches the locked chat/plan, not the Excalidraw + Web Speech v1 on `main`.
+- Kept `frontend/`, `backend/`, `firebase/` as later-layout files. They are not the running app.
+- Pointed `AGENTS.md`, `DECISIONS.md`, and `FLOW.md` at the repo-root harness.
+
 ## 2026-08-26 — Firebase instead of Mongo
 
 - Auth / data / hosting is **Firebase** (Google login, Firestore, Hosting). Mongo and `docker-compose` database are gone.

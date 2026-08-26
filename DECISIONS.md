@@ -6,36 +6,31 @@
 
 Software / system architecture diagrams (system design, AI/ML pipelines, cloud infra). Not building floor plans.
 
-## Canvas
+## This slice: agent path, no board
 
-Embed `@excalidraw/excalidraw` as a React component. Do not fork the editor. Targeting is the user’s current selection, not numbered overlays or an LLM guessing from a screenshot.
+Voice → Groq Whisper → keyword parser → OmniRoute OpenCode Go DeepSeek on miss → Command JSON preview. **No drawing surface.** A later canvas will expose these ops as agent tools against an agent-optimized scene, not a raw editor dump.
 
-Shape correction uses the selected element’s point array and math. No vision model.
+This was locked in the agent-path implementation (see `docs/features.md` and `docs/implementation-plan.md`). It overrides the older “embed Excalidraw + Web Speech in v1” scaffold on `main`.
 
-## Stack: React + Firebase + FastAPI
-
-We started with Mongo in Compose. **Switched to Firebase** so production deploy, **Google login**, and saved diagrams live in one Google project (Spark is free to test: 1 GiB, 50k reads/day, 20k writes/day).
-
-MongoDB / Atlas / Express are **not** in the repo. Do not reintroduce them without a new decision.
+## Stack: root Vite harness + Groq + OmniRoute
 
 | Piece | Choice | Why |
 |---|---|---|
-| Frontend | React + Vite + TypeScript | Excalidraw ships as a React component; Vite is the usual host |
-| Auth | Firebase Auth, Google provider | Requested for production; Spark includes Auth |
-| DB | Cloud Firestore | Same project as Auth; document JSON fits a scene (watch the 1 MB doc limit) |
-| Hosting | Firebase Hosting | Production URL without a separate VPS |
-| API | FastAPI | Still useful for later Python geometry/intent; **not** the database |
-| Voice v1 | Web Speech API in the browser | Mic stays local; Firebase is not STT |
-| Geometry v1 | Frontend TypeScript | Selection lives in the editor |
+| App | React + Vite at repo root | Harness UI only; no editor package |
+| STT | Groq `whisper-large-v3-turbo` | Hosted Whisper; filename must have an extension; `verbose_json` |
+| Intent | Keywords first, then OmniRoute DeepSeek Flash (Pro via Settings) | LLM only on a true miss; `"thinking": { "type": "disabled" }` |
+| Keys | Settings / `localStorage` | Proxy must not read `process.env` |
+| Tests | Vitest mocks + optional `npm run test:live` | Unit tests need no keys; live tests require keys and refuse 429 retries |
 
-## Saves vs free quota
+## What `frontend/`, `backend/`, `firebase/` are
 
-Debounce Firestore writes (button or ~30s), never per-stroke. Testing will not hit 20k writes/day. Stay on Spark until we outgrow it.
+They landed from `main` as a later canvas / Firebase hosting sketch (Google login, Firestore, FastAPI `/api/health`). They are **not** the current app. Do not run `cd frontend` for this slice. Do not reintroduce Web Speech or an editor board until a later canvas PR.
 
-## What v1 will not do
+## What this slice will not do
 
-No text-to-diagram, no whole-board generation from a monologue, no Rumik/Ira-style talking companion, no icon library, English commands only. No live multiplayer.
+No board, geometry, scene persist, text-to-diagram, whole-board generation, Rumik/Ira talking companion, OpenCode CLI, env-key proxy, thinking-enabled LLM calls. English commands only.
 
 ## Tests
 
-Backend: FastAPI TestClient on `/api/health`. Frontend tests wait until Excalidraw is actually mounted. Auth is skipped in CI until Firebase emulators exist.
+- `npm test`: mocks only; no Groq/OmniRoute network.
+- `npm run test:live`: requires `GROQ_API_KEY` (must start with `gsk_`) and `OMNIROUTE_API_KEY`. Probe rate-limit endpoints first. At most one Whisper call and one chat completion. Do not retry 429.
