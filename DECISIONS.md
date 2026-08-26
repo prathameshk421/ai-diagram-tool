@@ -2,6 +2,14 @@
 
 **This file is for the agent.** Record why a stack, library, test, or design was chosen. Add a section whenever you decide something non-obvious.
 
+## Approach C (locked): roles + typed tools + Command fast path
+
+Rejected A (six vision agents with screenshots) and B (host regex “isStructural” plus one patch LLM). This slice is **C**: full role contracts (enhancer → judge → command **or** build/plan), a closed `applyEditPlan` tool set, Command JSON as the fast path for the nine layout ops, deterministic `verifyEdit` / `reviewPlan` (no vision verify), and whole-board generation still host WONTFIX. Judge overlay never defaults to `plan` on LLM failure. Host must not regex-route align/perfect.
+
+## Snapshot is scene JSON clone + hash, not a camera image
+
+A “screenshot” in this product is a structured board snapshot: clone the scene JSON, hash it (`sceneHash`), optionally show SVG to humans. Never send a camera image, PNG, or vision payload to the model. `projectForAgentSafe` is the LLM copy (pins and `ink.points` stripped). `getLiveHash()` / start `sceneHash` gate writes so a human draw during the run cancels apply.
+
 ## Plan is reviewed in code first; optional LLM review stays unwired
 
 Judge may route `plan` for multi-step edits. The plan LLM returns `{goal, steps, expected?, say}` (`EditToolCall[]`, max 12), never coordinates. The host runs **`reviewPlan` in code** before any write: coordinate keys, length, beautify `freezePins: false`, strict unnamed `add_node`, and sidecar insert (`add_edge` A→B plus `insert_on_path` on that existing edge). Insert-on-path alone is allowed (the kernel splices). Tests must pass with no LLM review.
@@ -51,7 +59,7 @@ The model snapshot is `projectForAgentSafe`: no `pin`, no `ink.points`. `view.re
 
 ## Typed edit tools over free JSON Patch
 
-The agent write API is a closed set of `EditToolCall`s applied by `applyEditPlan`, not open RFC6902. Free patch can target `/selection`, splice with `-` (NaN), or replace whole `/nodes`. Typed tools cannot express `pin.x` / width / ink points; the kernel still owns geometry. Command JSON `{op, args}` remains the LLM output for the original nine ops — `desugarCommand` is the adapter so there is one write path. JSON Patch stays for existing tests and host-gated turns, with a denylist for host fields and whole-record replace.
+The agent write API is a closed set of `EditToolCall`s applied by `applyEditPlan`, not open RFC6902. Free patch can target `/selection`, splice with `-` (NaN), or replace whole `/nodes`. Typed tools cannot express `pin.x` / width / ink points; the kernel still owns geometry. Command JSON `{op, args}` remains the LLM output for the original nine ops — `desugarCommand` is the adapter so there is one write path. JSON Patch stays for existing tests and host-gated turns, with a denylist for host fields (`selection`, `lastDrawn`, `schema`, `view`) and whole-record replace.
 
 ## Product domain
 
@@ -67,9 +75,9 @@ Chrome `pointerdown.detail` is not a reliable click-count (often 0), and capturi
 
 ## This slice: architecture board + agent path
 
-Voice → Groq Whisper → OmniRoute OpenCode Go DeepSeek → Command JSON → `arch-scene/v1` kernel → SVG board.
+Voice → Groq Whisper → `runPipeline` (enhancer → judge → Command JSON **or** build/plan `EditToolCall[]`) → `applyEditPlan` → `arch-scene/v1` kernel → SVG board.
 
-The agent surgically edits one scene. The kernel owns pins, sizes, and routes. Humans draw and drag. There is still **no keyword table** for diagram ops. Undo is a **host** channel (snapshots + op journal), not an OmniRoute shortcut for align/perfect.
+The agent surgically edits one scene. The kernel owns pins, sizes, and routes. Humans draw and drag. There is still **no keyword table** for diagram ops. Undo is a **host** channel (snapshots + op journal), not an OmniRoute shortcut for align/perfect. Valid `enhance.command` may skip `requestCommand`; that is an LLM-emitted Command, not a host regex.
 
 ## Scene file is JSON, not a yaml dependency
 
@@ -81,7 +89,7 @@ The contract is YAML-shaped (`diagram.arch.yaml` in the locked plan). This repo 
 
 ## Command JSON stays the LLM output
 
-Existing OmniRoute tests require `{op, args, confidence, say}`. The kernel **maps** those ops onto passes/constraints (`perfect` → convert-ink + beautify). Structural ops (`insert`, delete+retarget, merge) are kernel functions + JSON Patch. The model must not emit coordinates. User payload is `{ transcript, selectionCount, selection }`.
+Existing OmniRoute tests require `{op, args, confidence, say}`. `desugarCommand` maps those ops onto `applyEditPlan` tools (`perfect` → convert-ink + beautify). Structural ops (`insert`, delete+retarget, merge) are kernel functions reachable on the live path via **build/plan tools**, not tests-only JSON Patch. The model must not emit coordinates. Fast Command payload is still `{ transcript, selectionCount, selection }` (no scene). Enhancer / plan / build send `projectForAgentSafe(scene)`.
 
 ## Beautify is not relayout and not AWS
 

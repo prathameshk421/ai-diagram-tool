@@ -1,8 +1,8 @@
 # Features
 
-Voice-driven **architecture board**: speak or type a short command; Groq transcribes; OmniRoute DeepSeek always interprets the text (no keyword table). One scene file (`arch-scene/v1`) is the source of truth. The agent patches semantics; a kernel compiles geometry. Humans draw, select, and drag on an SVG board.
+Voice-driven **architecture board**: speak or type a short command; Groq transcribes; OmniRoute DeepSeek always interprets the text (no keyword table). One scene file (`arch-scene/v1`) is the source of truth. The agent emits Command JSON or typed tools; `applyEditPlan` is the write API; the kernel compiles geometry. Humans draw, select, and drag on an SVG board. The model never invents coordinates.
 
-STT/intent transport details: `docs/implementation-plan.md`. Scene contract: this file + `src/scene/`.
+STT/intent transport details: `docs/implementation-plan.md`. Scene contract: this file + `src/scene/`. Pipeline: `src/agent/`.
 
 ---
 
@@ -10,12 +10,15 @@ STT/intent transport details: `docs/implementation-plan.md`. Scene contract: thi
 
 Software-architecture diagrams (system design, AI/ML pipelines, cloud infra). Voice and type-in go through the model. The model never invents coordinates.
 
-**Stack:** Vite React app at the repo root. SVG board. `arch-scene/v1` kernel. Same-origin proxies `/api/transcribe` (Groq Whisper) and `/api/intent` (OmniRoute OpenCode Go DeepSeek). Keys in Settings.
+**Stack:** Vite React app at the repo root. SVG board. `arch-scene/v1` kernel. Same-origin proxies `/api/transcribe` (Groq Whisper) and `/api/intent` (OmniRoute OpenCode Go DeepSeek, per-role `requestChatRole`). Keys in Settings.
 
 ```
 Human draw / drag ─┐
                    ├─► scene (JSON) ─► kernel (validate, passes, layout) ─► board
-Agent patch / Command JSON ─┘
+Agent path ────────┘
+  enhancer → judge → Command JSON
+                   or build/plan EditToolCall[]
+                   → applyEditPlan → kernel
 ```
 
 ---
@@ -38,7 +41,7 @@ Agent patch / Command JSON ─┘
 2. **Agent never writes** `pin.x` / `pin.y`, `width`, `height`, `ink.points`, hex colors, or invented icon keys. It may **delete** a pin to unpin.
 3. **Kernel / human own geometry.** Human drag writes `pin` only. Camera pan/zoom is not stored.
 4. **No vision model.** No OCR, no color query (“the blue one”).
-5. **No LLM inventing coordinates.** Speech → Groq → OmniRoute → Command JSON (or a JSON Patch without geometry keys).
+5. **No LLM inventing coordinates.** Speech → Groq → pipeline (`requestChatRole` roles) → Command JSON **or** `EditToolCall[]` → `applyEditPlan`. JSON Patch is **not** the LLM write API.
 6. **No keyword parser** for diagram ops. Known phrases and paraphrases both hit DeepSeek. Host-only: undo / put it back / undo last hunk.
 7. **Questions never write.** SPOF / explain / missing cache / 3-tier → answer channel, SHA unchanged.
 8. **`beautify` is a frozen recipe:** freezeTopology + freezeSemantics + freezePins. Not AWS. Not type promotion. Not global relayout.
@@ -58,19 +61,29 @@ Select, box, pen, connect. Click-drag boxes write `pin` and a `size` token; rele
 
 Click-to-toggle Talk. Clip 300ms–15s. Groq `whisper-large-v3-turbo` via `POST /api/transcribe`. No Web Speech.
 
-### F3 — Intent
+### F3 — Intent (pipeline)
 
-OmniRoute `opencode-go/deepseek-v4-flash` (Pro via Settings) via `POST /api/intent` with thinking disabled. Always, not only on a miss. User payload: `{ transcript, selectionCount, selection }`.
+Host skips (no enhance/judge/command): undo, questions, whole-board generation, color targeting, split without named edges, duplicate board.
+
+Everything else is OmniRoute roles via the same `POST /api/intent`, thinking disabled (`requestChatRole`):
+
+- **Fast Command payload** remains `{ transcript, selectionCount, selection }` (no scene).
+- **Enhancer / plan / build payloads** include `projectForAgentSafe(scene)` (no pins, no `ink.points`, plus `view`).
+- Valid `enhance.command` skips `requestCommand`. Host `bindReferents` runs after the enhancer LLM.
+- Clarifying questions are a host channel (`ClarifyPanel`); SHA unchanged until a write.
+- **Verify** is `verifyEdit` scene predicates + tool trace, **not** a vision model or screenshot.
 
 ### F4 — Ops (executed on the scene)
 
-perfect, align, distribute, snap, bigger, smaller, equalize, connect, rotate → kernel constraints / passes.
+perfect, align, distribute, snap, bigger, smaller, equalize, connect, rotate → Command JSON fast path → `desugarCommand` → `applyEditPlan` → kernel constraints / passes.
 
-Kernel-only structural ops (tests + patches): `insert` on path, `merge`, `delete`+`retargetTo`, `tidy-layout`, `unoverlap`, `convert-ink` (same id), `restyle-icons` with `palette: aws` and freezePins, `annotate-path`.
+Structural ops (`insert` on path, `merge`, `delete`+`retargetTo`, `tidy-layout`, `unoverlap`, `convert-ink` (same id), `restyle-icons` with `palette: aws` and freezePins, `annotate-path`) are reachable via **build/plan tools** on the live agent path, not tests-only. Geometry stays kernel-owned.
 
 ### F5 — Agent projection
 
-`projectForAgent` omits `ink.points` and adds read-only `view.rel` / `view.containsSpatial`. The stored file keeps points.
+`projectForAgent` is the UI ScenePreview copy: omits `ink.points`, adds read-only `view.rel` / `view.containsSpatial`; **pins may remain**. The stored file keeps points.
+
+`projectForAgentSafe` is the LLM snapshot: **pins stripped**, no `ink.points`, plus `view` computed from the stored scene. Enhancer / plan / build payloads use this. Fast Command still sends no scene.
 
 ---
 
@@ -88,12 +101,15 @@ The model maps natural English onto the ops above. Examples:
 | Equalize | “make these the same size”, “same width” |
 | Connect | “connect these” |
 | Rotate | “rotate”, “rotate 90” |
+| Insert (splice) | “add Redis in front of the DB” → `insert_on_path` even with empty selection if the model names the DB |
 | Questions | “what’s the SPOF?”, “are we missing a cache?” → no file write |
 | Undo | “undo”, “put it back” (host snapshot); “undo last kafka bit” (host journal) |
 
-Bare “align these” / “distribute” without an axis → the model should return `unknown` with a hint (not invent an axis).
+Bare “align these” / “distribute” without an axis → the model should return `unknown` with a hint (not invent an axis). Vague prompts may **ask** (`ClarifyPanel`); SHA unchanged until a write.
 
 Empty selection + “perfect this” → ask, no write.
+
+“Add Redis in front of the DB” is an insert splice even with empty selection if the model names the DB. Sidecar `api→db` is a bug.
 
 ---
 
@@ -128,12 +144,15 @@ Referents: unique `label` / `icon` (case-insensitive), else selection / lastDraw
 ## 8. Demo (this slice is done when)
 
 1. Type `align left` with empty OmniRoute keys → toast asking for a key; no Command from regex.
-2. Type `align left` with OmniRoute keys → DeepSeek Command JSON, then the kernel aligns selected pins.
+2. Type `align left` with OmniRoute keys → DeepSeek Command JSON (enhancer `command` and/or command role), then the kernel aligns selected pins.
 3. Talk with no Groq key → toast, no Groq request.
 4. Draw a box, select it, say “perfect this” → `/api/intent` runs; board restyles in place.
-5. “Add Redis in front of the DB” (kernel insert) does not leave `api→db`.
+5. “Add Redis in front of the DB” (build/plan `insert_on_path`) does not leave `api→db`.
 6. “What’s the SPOF?” does not change the scene SHA.
 7. OmniRoute down → unknown, no crash.
+8. Empty OmniRoute key still toasts (enhancer refuse; no regex fallback).
+9. Empty selection + deictic “this” / “these” / “perfect this” opens **ClarifyPanel**; no write.
+10. Question turns leave the scene SHA unchanged.
 
 ---
 
@@ -157,3 +176,7 @@ Referents: unique `label` / `icon` (case-insensitive), else selection / lastDraw
 | 21 | Beautify | Frozen recipe with implicit freezes |
 | 22 | Insert | Splice on path, not a sidecar |
 | 23 | Questions | SHA-stable answer channel |
+| 24 | Typed tools | `applyEditPlan` is the write API; JSON Patch is not the LLM write API |
+| 25 | Pipeline roles | enhancer → judge → command **or** build/plan; host `bindReferents` after enhancer |
+| 26 | Verify without vision | `verifyEdit` scene predicates + tool trace; never a screenshot |
+| 27 | Command JSON fast path | Valid `enhance.command` skips `requestCommand`; host must not regex align/perfect |

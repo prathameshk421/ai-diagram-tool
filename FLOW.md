@@ -39,7 +39,7 @@ Browser  :5173  →  Vite (repo root)
 ```
 scene JSON
   → Command → desugarCommand → applyEditPlan tools
-    (or JSON Patch, denylist: pin.x, width, height, points, selection, lastDrawn)
+    (or JSON Patch, denylist: pin.x, width, height, points, selection, lastDrawn, schema, view)
   → compile after each tool; any failure rolls back the original scene
   → passes (one-shot, then cleared)
   → constraints (then cleared)
@@ -139,7 +139,7 @@ runPlan = requestChatRole(role: "plan")
 | Verify sent a screenshot | Verify is predicates + tool trace only — never an image |
 | Question changed the diagram | `applyTurn` must SHA-stabilize questions |
 | Ask only flashed a toast | Pipeline `ask` must set `pendingAsk` + ClarifyPanel |
-| Align left skipped OmniRoute | Production enhance must not pre-parse a command; `requestCommand` → `resolveCommand` |
+| Align left skipped OmniRoute without an LLM | Host regex for align/perfect; valid `enhance.command` **is allowed** to skip `requestCommand` |
 | Enhancer invented node ids | Host `bindReferents` must run after the LLM; payload must be `projectForAgentSafe` |
 | Judge defaulted to plan on 500 | `runJudge` fallback is `command`, never plan |
 | Edit applied after a drag | `getLiveHash` / `liveHash` gate before apply |

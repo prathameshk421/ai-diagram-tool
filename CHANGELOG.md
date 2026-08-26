@@ -2,6 +2,14 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Agent pipeline feature contract and flow
+
+- `docs/features.md`: agent path is enhancer → judge → Command JSON or build/plan tools → `applyEditPlan`. F3 is a pipeline (`projectForAgentSafe` for structural roles; verify is predicates). F4 structural ops are live via build/plan. F5 distinguishes `projectForAgent` vs `projectForAgentSafe`. Vague prompts may ask; Redis insert splices with empty selection if the model names the DB. Demos add ClarifyPanel deictic ask. Decision log rows 24–27. WONTFIX §6 unchanged (no vision, no whole-board gen, no keyword table).
+- `AGENTS.md`: `applyEditPlan` is the write API; never send screenshots; verify is predicates; never keyword-route ops. Layout lists `src/agent/verify/` and roles (enhancer, judge, build, plan, reviewPlan).
+- `FLOW.md`: patch denylist includes `schema` / `view`. Bug table: valid `enhance.command` may skip `requestCommand`; hunt a **host regex** for align/perfect, not an LLM Command on the enhancer.
+- `DECISIONS.md`: Approach C; snapshot = scene JSON clone + hash, not a camera image.
+- Fixtures: `tests/agent/fixtures/{enhancer-ready-align,enhancer-ask-kafka,build-insert-redis,plan-insert-redis}.json` loaded by `tests/agent/fixtures.test.ts`.
+
 ## 2026-08-26 — Plan agent and deterministic plan review
 
 - `runPlan` / `parsePlan` call `requestChatRole` role `plan` with `PLAN_PROMPT` and `projectForAgentSafe(scene)`. Plan JSON is `{goal, steps, expected?, say}`: 1–12 `EditToolCall`s, no geometry keys. Missing OmniRoute key, HTTP 500, and invalid JSON fail closed (`null`).

@@ -1,0 +1,11 @@
+{
+  "status": "ready",
+  "summary": "align left",
+  "targetQueries": [],
+  "command": {
+    "op": "align",
+    "args": { "edge": "left" },
+    "confidence": 0.9,
+    "say": "Aligned left."
+  }
+}

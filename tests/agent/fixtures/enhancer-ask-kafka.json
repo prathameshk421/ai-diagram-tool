@@ -1,0 +1,6 @@
+{
+  "status": "ask",
+  "kind": "selection",
+  "say": "Which Kafka?",
+  "candidates": ["kafka_a", "kafka_b"]
+}
