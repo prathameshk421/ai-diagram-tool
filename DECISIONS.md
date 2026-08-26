@@ -2,6 +2,14 @@
 
 **This file is for the agent.** Record why a stack, library, test, or design was chosen. Add a section whenever you decide something non-obvious.
 
+## Per-role OmniRoute budgets
+
+Client timeout and `max_tokens` live in `ROLE_BUDGETS` keyed by `ChatRole`. Fast Command stays **4s / 200**. Enhancer/judge/plan/review/build do not inherit that global cap. Turn caps (`TURN_CAPS`) are constants for a later orchestrator; this slice only ships the numbers.
+
+## Agent-safe projection strips pins
+
+The model snapshot is `projectForAgentSafe`: no `pin`, no `ink.points`. `view.rel` / `view.containsSpatial` are computed from the **stored** scene so spatial relations stay correct after pins are stripped. `projectForAgent` remains the UI ScenePreview copy (pins may remain). Snapshot is structured JSON, never an image.
+
 ## Typed edit tools over free JSON Patch
 
 The agent write API is a closed set of `EditToolCall`s applied by `applyEditPlan`, not open RFC6902. Free patch can target `/selection`, splice with `-` (NaN), or replace whole `/nodes`. Typed tools cannot express `pin.x` / width / ink points; the kernel still owns geometry. Command JSON `{op, args}` remains the LLM output for the original nine ops — `desugarCommand` is the adapter so there is one write path. JSON Patch stays for existing tests and host-gated turns, with a denylist for host fields and whole-record replace.

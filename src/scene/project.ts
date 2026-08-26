@@ -61,9 +61,27 @@ export function buildView(scene: Scene): SceneView {
   return { rel, containsSpatial };
 }
 
-/** Agent-facing copy: strip ink points. Never the stored file. */
+/** UI ScenePreview copy: strip ink points. Pins may remain. Never the stored file. */
 export function projectForAgent(scene: Scene): unknown {
   const copy = cloneJson(scene);
+  for (const ink of Object.values(copy.ink)) {
+    delete ink.points;
+  }
+  return {
+    ...copy,
+    view: buildView(scene),
+  };
+}
+
+/**
+ * LLM snapshot: no pins, no ink points. View is computed from the stored scene
+ * so spatial rel stays correct. Never the stored file.
+ */
+export function projectForAgentSafe(scene: Scene): unknown {
+  const copy = cloneJson(scene);
+  for (const node of Object.values(copy.nodes)) {
+    delete node.pin;
+  }
   for (const ink of Object.values(copy.ink)) {
     delete ink.points;
   }

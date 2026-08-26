@@ -2,6 +2,12 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Agent-safe projection + per-role OmniRoute chat
+
+- `projectForAgentSafe` clones the scene, deletes every `node.pin` and `ink.points`, and attaches `view` computed from the stored scene (so `rel` stays correct). `projectForAgent` is unchanged for ScenePreview (pins may remain).
+- `requestChatRole` posts to the same `/api/intent` with per-role `ROLE_BUDGETS` (`src/agent/pipeline/budgets.ts`). Thinking is `{ type: "disabled" }`; HTTP 400 omits thinking once; 500/429 are not retried.
+- `requestIntent` is the command role on top of `requestChatRole`: still 4s / 200 tokens and payload `{ transcript, selectionCount, selection }` (no scene).
+
 ## 2026-08-26 — applyEditPlan review: add wipe, connect ortho, id clash
 
 - JSON Patch `add` of whole `/nodes` or `/edges` is rejected (same as replace/remove).

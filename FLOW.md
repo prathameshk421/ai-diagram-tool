@@ -30,7 +30,7 @@ Browser  :5173  →  Vite (repo root)
 7. Otherwise `resolveCommand` always `POST /api/intent` when OmniRoute URL+key are set. Payload: `{ transcript, selectionCount, selection }`.
 8. Missing OmniRoute key → toast. No regex fallback.
 9. `applyTurn` maps Command JSON onto the scene through `desugarCommand` + `applyEditPlan` (or a JSON Patch). Questions return an answer and do not write.
-10. Preview shows Command JSON, optional answer, and the **agent-facing** scene (no `ink.points`, plus `view`).
+10. Preview shows Command JSON, optional answer, and the **UI** scene copy (`projectForAgent`: no `ink.points`, plus `view`; pins may remain). LLM payloads use `projectForAgentSafe` (pins stripped too).
 
 ## Scene kernel
 
@@ -65,11 +65,18 @@ No Web Speech. Missing Groq key → toast; do not record.
 ## Intent
 
 ```
-transcript + selectionCount + selection[]
-  → OmniRoute chat completions (always, if keys set)
+requestChatRole(role, system, payload)
+  → POST /api/intent  (same headers as today)
+       max_tokens + timeout from ROLE_BUDGETS[role]
        thinking: { type: "disabled" }
-       400 → omit thinking once
-       parse choices[0].message.content → Command
+       400 → omit thinking once (per call)
+       500 / 429 → no retry
+  → raw choices[0].message.content  (no Command parse)
+
+requestIntent = requestChatRole(role: "command")
+  payload { transcript, selectionCount, selection }  — no scene
+  4s / 200 tokens
+  parse Command JSON; invalid / coords / confidence < 0.45 → unknown
   → applyTurn(scene, command, transcript)
 ```
 
