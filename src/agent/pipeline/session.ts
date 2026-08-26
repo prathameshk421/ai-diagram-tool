@@ -2,6 +2,7 @@ import type { EditToolCall } from "../edit";
 import type { Command } from "../../intent/types";
 import type { Scene } from "../../scene/types";
 import type { Settings } from "../../settings/store";
+import type { VerifyInput, VerifyResult } from "../verify/predicates";
 
 export type PipelineStage =
   | "idle"
@@ -70,14 +71,16 @@ export type PipelineDeps = {
     selectionCount: number,
     selection: string[],
   ) => Promise<Command>;
-  /** Optional until Task 5. If missing and route is build/plan, return unknown, no write. */
+  /** If missing and route is build, return unknown, no write. */
   build?: (input: {
     transcript: string;
     intent: Extract<EnhancerOutput, { status: "ready" }>;
     scene: Scene;
+    errors?: unknown;
   }) => Promise<{ calls: EditToolCall[]; say: string }>;
   plan?: never; // Task 6
-  verify?: never; // Task 5 — skip if absent
+  /** Scene predicates + tool trace. Skip the rebuild loop if absent. */
+  verify?: (input: VerifyInput) => VerifyResult;
 };
 
 export type PipelineInput = {

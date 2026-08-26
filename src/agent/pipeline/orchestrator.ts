@@ -289,41 +289,131 @@ export async function runPipeline(
           say: unknownCommand().say,
         });
       }
-      const buildCap = bump();
-      if (buildCap) return buildCap;
-      let built: { calls: EditToolCall[]; say: string };
-      try {
-        built = await deps.build({ transcript: trimmed, intent, scene });
-      } catch {
-        return unknownOut(scene, llmCalls);
-      }
-      if (aborted()) return unknownOut(scene, llmCalls);
-      if (hashMismatch()) {
-        return unknownOut(scene, llmCalls, BOARD_CHANGED_SAY, {
-          stage: "idle",
-          enhancedSummary: intent.summary,
-          judgeRoute: "build",
-          say: BOARD_CHANGED_SAY,
+      const original = scene;
+      let lastErrors: unknown;
+      let lastSay = unknownCommand().say;
+      for (let attempt = 0; attempt < TURN_CAPS.maxVerifyAttempts; attempt++) {
+        const buildCap = bump();
+        if (buildCap) return buildCap;
+        let built: { calls: EditToolCall[]; say: string };
+        try {
+          built = await deps.build({
+            transcript: trimmed,
+            intent,
+            scene: original,
+            errors: lastErrors,
+          });
+        } catch {
+          return unknownOut(original, llmCalls);
+        }
+        if (aborted()) return unknownOut(original, llmCalls);
+        if (hashMismatch()) {
+          return unknownOut(original, llmCalls, BOARD_CHANGED_SAY, {
+            stage: "idle",
+            enhancedSummary: intent.summary,
+            judgeRoute: "build",
+            say: BOARD_CHANGED_SAY,
+          });
+        }
+        const edited = applyEditPlan(original, built.calls, {
+          transcript: trimmed,
         });
+        if (edited.ask) {
+          return withTurnAsk(
+            {
+              scene: original,
+              wrote: false,
+              ask: true,
+              answer: null,
+              say: edited.say,
+            },
+            trimmed,
+            startHash,
+            {
+              command: null,
+              llmCalls,
+              enhancedSummary: intent.summary,
+              judgeRoute: "build",
+            },
+          );
+        }
+        if (!edited.ok) {
+          lastErrors = edited.errors;
+          lastSay = edited.say;
+          continue;
+        }
+        if (!deps.verify) {
+          return withTurnAsk(
+            {
+              scene: edited.scene,
+              wrote: edited.wrote,
+              ask: false,
+              answer: edited.answer,
+              say: built.say,
+            },
+            trimmed,
+            startHash,
+            {
+              command: null,
+              llmCalls,
+              enhancedSummary: intent.summary,
+              judgeRoute: "build",
+            },
+          );
+        }
+        const verified = deps.verify({
+          before: original,
+          after: edited.scene,
+          transcript: trimmed,
+          calls: built.calls,
+        });
+        if (verified.pass) {
+          return withTurnAsk(
+            {
+              scene: edited.scene,
+              wrote: edited.wrote,
+              ask: false,
+              answer: edited.answer,
+              say: built.say,
+            },
+            trimmed,
+            startHash,
+            {
+              command: null,
+              llmCalls,
+              enhancedSummary: intent.summary,
+              judgeRoute: "build",
+            },
+          );
+        }
+        if (verified.remediation === "ask") {
+          return withTurnAsk(
+            {
+              scene: original,
+              wrote: false,
+              ask: true,
+              answer: null,
+              say: verified.failures[0]?.detail || SELECT_SAY,
+            },
+            trimmed,
+            startHash,
+            {
+              command: null,
+              llmCalls,
+              enhancedSummary: intent.summary,
+              judgeRoute: "build",
+            },
+          );
+        }
+        lastErrors = verified.failures;
+        lastSay = verified.failures[0]?.detail || lastSay;
       }
-      const edited = applyEditPlan(scene, built.calls, { transcript: trimmed });
-      return withTurnAsk(
-        {
-          scene: edited.ok ? edited.scene : scene,
-          wrote: edited.ok && edited.wrote,
-          ask: edited.ask,
-          answer: edited.answer,
-          say: edited.ask || !edited.ok ? edited.say : built.say,
-        },
-        trimmed,
-        startHash,
-        {
-          command: null,
-          llmCalls,
-          enhancedSummary: intent.summary,
-          judgeRoute: "build",
-        },
-      );
+      return unknownOut(original, llmCalls, lastSay, {
+        stage: "idle",
+        enhancedSummary: intent.summary,
+        judgeRoute: "build",
+        say: lastSay,
+      });
     }
 
     if (!command) {

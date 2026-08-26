@@ -81,7 +81,11 @@ type-in / Talk transcript
          ready else judge = runJudge → requestChatRole(role judge)
            overlay: usableCommand → command; structural hint without multiStep → build (never default plan on LLM failure)
            command → requestCommand = resolveCommand → requestIntent
-           build → deps.build or unknown (no write until Task 5)
+           build → runBuild (role build, projectForAgentSafe scene, errors from last fail)
+             applyEditPlan on original scene → verifyEdit (predicates, no image)
+             pass → write; ask remediation → original scene + ClarifyPanel
+             rebuild fail → retry build (max TURN_CAPS.maxVerifyAttempts = 2)
+             still fail / 500 / invalid JSON → original scene, wrote false
            plan → unknown
        hash mismatch / abort / throw → no write
 
@@ -98,6 +102,11 @@ requestIntent = requestChatRole(role: "command")
   4s / 200 tokens
   parse Command JSON; invalid / coords / confidence < 0.45 → unknown
   → applyTurn(scene, command, transcript)
+
+runBuild = requestChatRole(role: "build")
+  payload { transcript, intent, scene: projectForAgentSafe, errors }
+  12s / 600 tokens
+  parse {calls, say}; geometry / unknown tool / >8 calls / HTTP 500 → empty calls
 ```
 
 ## Where a bug might live
@@ -113,7 +122,9 @@ requestIntent = requestChatRole(role: "command")
 | Live tests 429 loop | Must not retry 429; check `tests/helpers/rateLimitGuard.ts` |
 | Agent moved a box | Patch leaked `pin.x` / `x`; see `src/scene/patch.ts` |
 | Beautify shuffled the graph | Freeze flags broken; beautify must restyle in place |
-| Redis added beside the DB | Insert left a sidecar; must splice the edge |
+| Redis added beside the DB | Insert left a sidecar; `verifyEdit` must fail `INSERT_SIDECAR` and rebuild (max 2) or roll back |
+| Build wrote after two verify fails | Exhaustion must return the original scene SHA |
+| Verify sent a screenshot | Verify is predicates + tool trace only — never an image |
 | Question changed the diagram | `applyTurn` must SHA-stabilize questions |
 | Ask only flashed a toast | Pipeline `ask` must set `pendingAsk` + ClarifyPanel |
 | Align left skipped OmniRoute | Production enhance must not pre-parse a command; `requestCommand` → `resolveCommand` |

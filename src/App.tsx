@@ -14,8 +14,10 @@ import type {
   PipelineStage,
   PipelineTrace,
 } from "./agent/pipeline/session";
+import { runBuild } from "./agent/roles/runBuild";
 import { runEnhancer } from "./agent/roles/runEnhancer";
 import { runJudge } from "./agent/roles/runJudge";
+import { verifyEdit } from "./agent/verify/predicates";
 import { resolveCommand } from "./intent/resolveCommand";
 import { requestIntent } from "./intent/omnirouteClient";
 import { type Command, unknownCommand } from "./intent/types";
@@ -146,6 +148,8 @@ export default function App() {
       judge: (input) => runJudge({ settings: currentSettings, ...input }),
       requestCommand: (t, n, sel) =>
         resolveCommand(t, n, currentSettings, requestIntent, sel),
+      build: (input) => runBuild({ settings: currentSettings, ...input }),
+      verify: verifyEdit,
     };
   }
 

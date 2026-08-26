@@ -2,6 +2,13 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Build agent and deterministic scene verify
+
+- `runBuild` / `parseBuild` call `requestChatRole` role `build` with `BUILD_PROMPT` and `projectForAgentSafe(scene)`. Invalid JSON, unknown tools, geometry keys (`pin`/`x`/`y`/…), >8 calls, and HTTP 500 fail closed (empty calls, no write, no retry). Missing OmniRoute key asks without fetch.
+- `verifyEdit` is scene predicates + tool trace (no vision, no LLM). Insert must splice (fail `INSERT_SIDECAR`); beautify must freeze ids/kinds/pins; tool args must not leak coordinates.
+- Orchestrator build route: up to `TURN_CAPS.maxVerifyAttempts` (2) of build → `applyEditPlan` → verify. Failures pass `errors` back into the next build payload. Exhaustion rolls back to the original scene (`wrote: false`). Ask remediation and apply-plan ask skip the rebuild loop.
+- App `pipelineDeps` injects `runBuild` and `verifyEdit`. Plan/review agents still absent.
+
 ## 2026-08-26 — Enhancer and judge roles with host resolveReferent
 
 - `runEnhancer` / `runJudge` call `requestChatRole` and parse JSON. Invalid JSON and HTTP 500 fail closed (enhancer refuse unknown; judge `route: "command"` — never plan).

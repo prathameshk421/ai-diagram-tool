@@ -2,13 +2,25 @@
 
 **This file is for the agent.** Record why a stack, library, test, or design was chosen. Add a section whenever you decide something non-obvious.
 
+## Build role emits tools; verify is deterministic (no vision)
+
+Judge may route `build`. The build LLM returns `{calls, say}` (`EditToolCall[]`), never coordinates. The host applies those tools with `applyEditPlan` on the **pre-build** scene, then `verifyEdit` checks the result: `validateScene`, insert splice (no sidecar A→B), beautify freeze (ids + kinds + pins), no coordinate keys in tool args, optional `expected` graph predicates.
+
+Verify is **not** an LLM and does not take a screenshot. Pins in the stored scene are kernel-owned, so the verifier skips `pin` / ink `points` when walking `after` and only fails `COORDINATE_LEAK` on agent-owned keys and tool args.
+
+Rebuild cap is `TURN_CAPS.maxVerifyAttempts === 2` (each build counts as an LLM call). Failures (apply errors or verify `rebuild`) go back as `errors` in the next build payload. After two misses the host returns the original scene (`wrote: false`) so a bad build cannot dirty the file SHA. `ask` (deictic / strict) does not rebuild. HTTP 500 is not retried.
+
+`PipelineDeps.build` / `verify` stay injectable so orchestrator tests can mock a failing verifier without calling OmniRoute. Production App wires `runBuild` + `verifyEdit`. Plan/review roles stay unimplemented.
+
 ## Pipeline roles are injectable; production enhancer/judge call OmniRoute
 
-`runPipeline` takes `PipelineDeps` so tests mock enhance/judge/requestCommand/build. Production App injects:
+`runPipeline` takes `PipelineDeps` so tests mock enhance/judge/requestCommand/build/verify. Production App injects:
 
 - enhance → `runEnhancer` (`requestChatRole` role enhancer + `parseEnhancer` + host `bindReferents`)
 - judge → `runJudge` (`requestChatRole` role judge + `parseJudge` + structural overlay)
 - requestCommand → `resolveCommand(..., requestIntent)` so a ready enhancer without `command` still hits OmniRoute
+- build → `runBuild` (`requestChatRole` role build + `parseBuild`)
+- verify → `verifyEdit` (scene predicates; injectable in tests)
 
 If `enhance.command` is a valid Command (`confidence >= 0.45`, `op !== unknown`), the host overlays `route: "command"` and **does not** call `requestCommand` (simple path can finish in 1 call). The enhancer LLM may include that Command JSON for a filled layout op; the host does **not** regex align/perfect.
 
@@ -22,7 +34,7 @@ The enhancer emits English `targetQueries`, not coordinates. `bindReferents` is 
 
 ## Per-role OmniRoute budgets
 
-Client timeout and `max_tokens` live in `ROLE_BUDGETS` keyed by `ChatRole`. Fast Command stays **4s / 200**. Enhancer/judge/plan/review/build do not inherit that global cap. Turn caps (`TURN_CAPS`) are constants for a later orchestrator; this slice only ships the numbers.
+Client timeout and `max_tokens` live in `ROLE_BUDGETS` keyed by `ChatRole`. Fast Command stays **4s / 200**. Enhancer/judge/plan/review/build do not inherit that global cap. Turn caps (`TURN_CAPS`) bound the orchestrator: `maxVerifyAttempts` is 2 for the build rebuild loop; `maxLlmCallsComplex` (5) is the hard LLM cap.
 
 ## Agent-safe projection strips pins
 

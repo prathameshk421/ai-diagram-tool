@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { EditToolCall } from "../../src/agent/edit";
 import {
   runPipeline,
   sceneAfterPipeline,
@@ -10,6 +11,7 @@ import type {
   PipelineOutput,
 } from "../../src/agent/pipeline/session";
 import { TURN_CAPS } from "../../src/agent/pipeline/budgets";
+import { hasEdge, noEdge, verifyEdit } from "../../src/agent/verify/predicates";
 import type { Command } from "../../src/intent/types";
 import { FLASH_MODEL, UNKNOWN_SAY } from "../../src/intent/types";
 import { cloneJson } from "../../src/scene/clone";
@@ -358,5 +360,127 @@ describe("runPipeline failure gates", () => {
     expect(result.say === UNKNOWN_SAY || /unknown|catch/i.test(result.say)).toBe(
       true,
     );
+  });
+});
+
+const redisInsertCalls: EditToolCall[] = [
+  {
+    tool: "add_node",
+    args: {
+      id: "redis",
+      spec: { kind: "cache", label: "Redis", icon: "redis", shape: "cylinder" },
+    },
+  },
+  { tool: "insert_on_path", args: { node: "redis", on: "api_to_db" } },
+];
+
+const readyInsert: Extract<EnhancerOutput, { status: "ready" }> = {
+  status: "ready",
+  summary: "insert redis",
+  targetQueries: ["db"],
+};
+
+describe("runPipeline build verify loop", () => {
+  it("retries build once when verify fails then passes", async () => {
+    expect(TURN_CAPS.maxVerifyAttempts).toBe(2);
+    const scene = apiDbScene();
+    const verify = vi
+      .fn<NonNullable<PipelineDeps["verify"]>>()
+      .mockReturnValueOnce({
+        pass: false,
+        failures: [{ code: "INSERT_SIDECAR", detail: "sidecar" }],
+        remediation: "rebuild",
+      })
+      .mockReturnValueOnce({ pass: true });
+    const build = vi.fn<NonNullable<PipelineDeps["build"]>>(async () => ({
+      calls: redisInsertCalls,
+      say: "Inserted Redis.",
+    }));
+    const result = await runPipeline(
+      {
+        transcript: "add Redis in front of the DB",
+        scene,
+        settings: keyed,
+        pending: null,
+      },
+      deps({
+        enhance: async () => readyInsert,
+        judge: async () => ({ route: "build", reason: "structural" }),
+        build,
+        verify,
+      }),
+    );
+    expect(build).toHaveBeenCalledTimes(2);
+    expect(verify).toHaveBeenCalledTimes(2);
+    expect(build.mock.calls[1][0].errors).toEqual([
+      { code: "INSERT_SIDECAR", detail: "sidecar" },
+    ]);
+    expect(result.wrote).toBe(true);
+    expect(noEdge(result.scene, "api", "db")).toBe(true);
+  });
+
+  it("rolls back to the original scene after two failed verifies", async () => {
+    const scene = apiDbScene();
+    const before = sceneHash(scene);
+    const build = vi.fn(async () => ({
+      calls: redisInsertCalls,
+      say: "Inserted Redis.",
+    }));
+    const verify = vi.fn(() => ({
+      pass: false as const,
+      failures: [{ code: "INSERT_SIDECAR", detail: "still sidecar" }],
+      remediation: "rebuild" as const,
+    }));
+    const result = await runPipeline(
+      {
+        transcript: "add Redis in front of the DB",
+        scene,
+        settings: keyed,
+        pending: null,
+      },
+      deps({
+        enhance: async () => readyInsert,
+        judge: async () => ({ route: "build", reason: "structural" }),
+        build,
+        verify,
+      }),
+    );
+    expect(build).toHaveBeenCalledTimes(2);
+    expect(verify).toHaveBeenCalledTimes(2);
+    expect(result.wrote).toBe(false);
+    expect(sceneHash(result.scene)).toBe(before);
+    expect(result.scene.edges.api_to_db).toBeDefined();
+  });
+
+  it("splices Redis in front of the DB with real applyEditPlan and verifyEdit", async () => {
+    const scene = apiDbScene();
+    scene.selection = [];
+    const before = sceneHash(scene);
+    const build = vi.fn(async () => ({
+      calls: redisInsertCalls,
+      say: "Inserted Redis in front of the DB.",
+    }));
+    const result = await runPipeline(
+      {
+        transcript: "add Redis in front of the DB",
+        scene,
+        settings: keyed,
+        pending: null,
+      },
+      deps({
+        enhance: async () => readyInsert,
+        judge: async () => ({ route: "build", reason: "structural" }),
+        build,
+        verify: verifyEdit,
+      }),
+    );
+    expect(build).toHaveBeenCalledTimes(1);
+    expect(result.wrote).toBe(true);
+    expect(result.ask).toBe(false);
+    expect(sceneHash(result.scene)).not.toBe(before);
+    expect(result.scene.edges.api_to_db).toBeUndefined();
+    expect(hasEdge(result.scene, "api", "redis")).toBe(true);
+    expect(hasEdge(result.scene, "redis", "db")).toBe(true);
+    expect(noEdge(result.scene, "api", "db")).toBe(true);
   });
 });
