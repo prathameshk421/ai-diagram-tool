@@ -17,7 +17,7 @@ If you edited code and skipped `CHANGELOG.md`, the change is incomplete. If you 
 
 ## Product (this slice)
 
-Voice-driven **agent path** for software architecture diagrams. Speak or type a short command. Groq Whisper transcribes. Keywords first, then OmniRoute OpenCode Go DeepSeek on a true miss. Output is closed **Command JSON**. There is **no drawing surface** in this slice.
+Voice-driven **agent path** for software architecture diagrams. Speak or type a short command. Groq Whisper transcribes. OmniRoute OpenCode Go DeepSeek always interprets the text (no keyword table). Output is closed **Command JSON**. There is **no drawing surface** in this slice.
 
 A later canvas will bind the same Command ops as tools against an agent-optimized scene. That canvas is not this PR.
 
@@ -25,13 +25,13 @@ A later canvas will bind the same Command ops as tools against an agent-optimize
 
 - **Current app:** React + Vite + TypeScript at the **repo root** (`src/`, `server/proxy.ts`). `npm run dev` here.
 - **STT:** Groq `whisper-large-v3-turbo` via same-origin `POST /api/transcribe`. No Web Speech.
-- **Intent:** keywords, then OmniRoute `POST /api/intent` → `{base}/v1/chat/completions`. Default `opencode-go/deepseek-v4-flash`.
+- **Intent:** OmniRoute `POST /api/intent` → `{base}/v1/chat/completions` for every command. Default `opencode-go/deepseek-v4-flash`. No keyword parser.
 - **Keys:** Settings / `localStorage` only. The Vite proxy must **not** read `process.env`. Live tests (`npm run test:live`) may read `GROQ_API_KEY` and `OMNIROUTE_API_KEY` in the test runner.
 - **Later layout only:** `frontend/`, `backend/`, `firebase/` came from `main`. Do not treat them as the running v1.1 app. Do not wire Excalidraw or Web Speech in this slice.
 
 ## Do
 
-- Keywords first. Skip OmniRoute on a parser hit and on bare align/distribute (`confidence === 0.8`).
+- Always send the transcript to OmniRoute. Do not add a keyword/regex shortcut.
 - Send `"thinking": { "type": "disabled" }`. Never `thinking: false`. HTTP 400 → omit `thinking` once.
 - Reject coordinate keys from the LLM. Empty transcript or `no_speech_prob >= 0.6` skips intent.
 - After a change: append `CHANGELOG.md`. If you chose something, add a section to `DECISIONS.md`. If you changed how pieces connect, edit `FLOW.md`.

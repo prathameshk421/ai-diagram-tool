@@ -1,6 +1,6 @@
 # Features
 
-v1.1 **agent path** for a voice-driven architecture-diagram assistant: you speak or type a short command; Groq transcribes; a keyword parser (then OmniRoute DeepSeek on miss) emits a closed `Command` JSON. There is **no drawing surface in this slice**.
+v1.1 **agent path** for a voice-driven architecture-diagram assistant: you speak or type a short command; Groq transcribes; OmniRoute DeepSeek always emits a closed `Command` JSON. There is **no keyword table** and **no drawing surface** in this slice.
 
 A later canvas will plug in as an **agent harness**: the same commands become tools against an agent-optimized scene model (not a raw editor dump). Geometry and board UX are specified then.
 
@@ -10,9 +10,9 @@ Implementation detail: `docs/implementation-plan.md`.
 
 ## 1. Product
 
-Software-architecture diagrams (system design, AI/ML pipelines, cloud infra). Voice and type-in map to a tiny op set. The model never invents coordinates.
+Software-architecture diagrams (system design, AI/ML pipelines, cloud infra). Voice and type-in go through the model. The model never invents coordinates.
 
-**Stack (this slice):** Vite React harness page. Same-origin proxies `/api/transcribe` (Groq Whisper) and `/api/intent` (OmniRoute OpenCode Go DeepSeek). Keys in Settings. Type-in works with empty keys. STT + LLM ship. No board.
+**Stack (this slice):** Vite React harness page. Same-origin proxies `/api/transcribe` (Groq Whisper) and `/api/intent` (OmniRoute OpenCode Go DeepSeek). Keys in Settings. Type-in needs an OmniRoute key. STT + LLM ship. No board.
 
 ---
 
@@ -22,6 +22,7 @@ Software-architecture diagrams (system design, AI/ML pipelines, cloud infra). Vo
 |---|---|
 | Voice → whole diagram | We emit one op on the implied selection, not a regenerated graph |
 | Screenshot / dump-the-scene agents | Agents will get tools + a compact scene, not stroke JSON |
+| Keyword / regex command maps | The LLM interprets every phrase |
 | Always-on talking companion | Push-to-talk command, no TTS |
 
 ---
@@ -30,10 +31,10 @@ Software-architecture diagrams (system design, AI/ML pipelines, cloud infra). Vo
 
 1. **Command JSON is the contract.** Later tools use the same ops/args.
 2. **No vision model** this slice.
-3. **No LLM inventing coordinates.** Speech → Groq → keywords → OmniRoute on unknown → `{op, args, confidence, say}`.
+3. **No LLM inventing coordinates.** Speech → Groq → OmniRoute → `{op, args, confidence, say}`.
 4. **No drawing surface this slice.** Canvas + tool harness come after.
-5. **Type-in works without a mic or keys.** STT and LLM still ship.
-6. **Keywords first.** Known phrases do not wait on DeepSeek.
+5. **No keyword parser.** Known phrases and paraphrases both hit DeepSeek.
+6. **Type-in needs OmniRoute keys.** Empty keys toast; they do not silently match regex.
 
 ---
 
@@ -49,7 +50,7 @@ Click-to-toggle Talk. Clip 300ms–15s. Groq `whisper-large-v3-turbo` via `POST 
 
 ### F3 — Intent
 
-Keywords first. OmniRoute `opencode-go/deepseek-v4-flash` (Pro via Settings) via `POST /api/intent` with thinking disabled.
+OmniRoute `opencode-go/deepseek-v4-flash` (Pro via Settings) via `POST /api/intent` with thinking disabled. Always, not only on a miss.
 
 ### F4 — Ops (names only; no execution)
 
@@ -58,6 +59,8 @@ perfect, align, distribute, snap, bigger, smaller, equalize, connect, rotate.
 ---
 
 ## 5. Phrases (English)
+
+The model maps natural English onto the ops above. Examples it should handle:
 
 | Operation | You can say |
 |---|---|
@@ -70,7 +73,7 @@ perfect, align, distribute, snap, bigger, smaller, equalize, connect, rotate.
 | Connect | “connect these” |
 | Rotate | “rotate”, “rotate 90” |
 
-Bare “align these” / “distribute” without an axis → refuse with a hint, skip LLM.
+Bare “align these” / “distribute” without an axis → the model should return `unknown` with a hint (not invent an axis).
 
 ---
 
@@ -82,6 +85,7 @@ Bare “align these” / “distribute” without an axis → refuse with a hint
 - Two-way TTS companion.
 - OpenCode CLI / `opencode.json`.
 - OmniRoute STT, Web Speech, env-key fallback, thinking-enabled LLM calls.
+- Keyword / regex intent shortcuts.
 - Non-English commands.
 
 ---
@@ -99,12 +103,11 @@ When a canvas exists:
 
 ## 8. Demo (this slice is done when)
 
-1. Type `align left` with empty keys → Command JSON `{op:"align", args:{edge:"left"}, …}`.
-2. Type `asdfgh` → unknown toast.
+1. Type `align left` with empty OmniRoute keys → toast asking for a key; no Command from regex.
+2. Type `align left` with OmniRoute keys → DeepSeek Command JSON `{op:"align", args:{edge:"left"}, …}`.
 3. Talk with no Groq key → toast, no Groq request.
-4. With Groq, say “perfect this” → keywords, no OmniRoute.
-5. With OmniRoute, a paraphrase keywords miss → Flash intent JSON.
-6. OmniRoute down on a miss → unknown, no crash.
+4. With Groq + OmniRoute, say “perfect this” → `/api/intent` runs (not a local keyword hit).
+5. OmniRoute down → unknown, no crash.
 
 ---
 
@@ -116,7 +119,7 @@ When a canvas exists:
 | 3 | Command list | Keep the full list, including rotate and equalize |
 | 10 | Language | English only |
 | 11 | STT | Groq Whisper `whisper-large-v3-turbo` via `POST /api/transcribe` |
-| 12 | Intent | Keywords first; OmniRoute OpenCode Go DeepSeek on miss |
+| 12 | Intent | OmniRoute OpenCode Go DeepSeek on **every** command; no keyword table |
 | 13 | Coordinates | Never from the LLM |
 | 14 | Canvas | **Out of this slice.** Later custom board + agent tools |
 | 15 | Keys | Settings only. No env-key fallback |

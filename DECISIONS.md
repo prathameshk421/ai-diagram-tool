@@ -8,9 +8,9 @@ Software / system architecture diagrams (system design, AI/ML pipelines, cloud i
 
 ## This slice: agent path, no board
 
-Voice → Groq Whisper → keyword parser → OmniRoute OpenCode Go DeepSeek on miss → Command JSON preview. **No drawing surface.** A later canvas will expose these ops as agent tools against an agent-optimized scene, not a raw editor dump.
+Voice → Groq Whisper → OmniRoute OpenCode Go DeepSeek → Command JSON preview. **No drawing surface.** A later canvas will expose these ops as agent tools against an agent-optimized scene, not a raw editor dump.
 
-This was locked in the agent-path implementation (see `docs/features.md` and `docs/implementation-plan.md`). It overrides the older “embed Excalidraw + Web Speech in v1” scaffold on `main`.
+The first harness used a keyword table so “align left” skipped the model. The owner asked to drop that and keep intent **pure AI**. Known phrases and paraphrases both hit DeepSeek.
 
 ## Stack: root Vite harness + Groq + OmniRoute
 
@@ -18,7 +18,7 @@ This was locked in the agent-path implementation (see `docs/features.md` and `do
 |---|---|---|
 | App | React + Vite at repo root | Harness UI only; no editor package |
 | STT | Groq `whisper-large-v3-turbo` | Hosted Whisper; filename must have an extension; `verbose_json` |
-| Intent | Keywords first, then OmniRoute DeepSeek Flash (Pro via Settings) | LLM only on a true miss; `"thinking": { "type": "disabled" }` |
+| Intent | OmniRoute DeepSeek Flash (Pro via Settings) on every command | No keyword/regex table; `"thinking": { "type": "disabled" }` |
 | Keys | Settings / `localStorage` | Proxy must not read `process.env` |
 | Tests | Vitest mocks + optional `npm run test:live` | Unit tests need no keys; live tests require keys and refuse 429 retries |
 

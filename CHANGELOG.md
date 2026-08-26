@@ -2,6 +2,12 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Pure AI intent (no keyword table)
+
+- Deleted `keywordParser`. Every typed or spoken command goes to OmniRoute DeepSeek.
+- Missing OmniRoute URL/key → toast, no regex fallback.
+- Type-in now needs an OmniRoute key, same as paraphrases.
+
 ## 2026-08-26 — Merge main; agent path wins
 
 - Merged `main` (web layout + agent tracking docs).

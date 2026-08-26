@@ -68,11 +68,11 @@ export function SettingsDrawer({ draft, onChange, onSave, onClose }: Props) {
         </select>
       </label>
       {!draft.groqApiKey.trim() ? (
-        <p className="warn">Voice needs a Groq key. Type-in still works.</p>
+        <p className="warn">Voice needs a Groq key.</p>
       ) : null}
       {!draft.omnirouteApiKey.trim() ? (
         <p className="warn">
-          Missed phrases will not use the LLM until an OmniRoute key is saved.
+          Commands need an OmniRoute key. There is no keyword fallback.
         </p>
       ) : null}
       <div className="drawer-actions">

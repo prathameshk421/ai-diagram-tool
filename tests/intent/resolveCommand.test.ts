@@ -31,49 +31,23 @@ describe("resolveCommand", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not call OmniRoute on a keyword hit", async () => {
-    const request = vi.fn();
+  it("always calls OmniRoute on a known phrase when the key is set", async () => {
+    const request = vi.fn().mockResolvedValue(llmCommand());
     const command = await resolveCommand("align left", 2, keyed, request);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith(keyed, "align left", 2);
     expect(command.op).toBe("align");
-    expect(command.args).toEqual({ edge: "left" });
-    expect(request).not.toHaveBeenCalled();
   });
 
-  it("does not call OmniRoute on bare align", async () => {
-    const request = vi.fn();
-    const command = await resolveCommand("align these", 2, keyed, request);
-    expect(command.op).toBe("unknown");
-    expect(command.confidence).toBe(0.8);
-    expect(request).not.toHaveBeenCalled();
+  it("always calls OmniRoute on bare align when the key is set", async () => {
+    const request = vi.fn().mockResolvedValue(
+      llmCommand({ op: "unknown", args: {}, confidence: 0, say: "Didn’t catch that." }),
+    );
+    await resolveCommand("align these", 2, keyed, request);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it("does not call OmniRoute on bare distribute", async () => {
-    const request = vi.fn();
-    const command = await resolveCommand("space these evenly", 2, keyed, request);
-    expect(command.op).toBe("unknown");
-    expect(command.confidence).toBe(0.8);
-    expect(request).not.toHaveBeenCalled();
-  });
-
-  it("does not call OmniRoute when the URL is whitespace", async () => {
-    const request = vi.fn();
-    const command = await resolveCommand("line these up on the left", 2, {
-      ...keyed,
-      omnirouteUrl: "   ",
-    }, request);
-    expect(command.op).toBe("unknown");
-    expect(request).not.toHaveBeenCalled();
-  });
-
-  it("does not call OmniRoute when the key is empty", async () => {
-    const request = vi.fn();
-    const command = await resolveCommand("line these up on the left", 2, emptyKeys, request);
-    expect(command.op).toBe("unknown");
-    expect(command.confidence).toBe(0);
-    expect(request).not.toHaveBeenCalled();
-  });
-
-  it("calls OmniRoute on a true miss when the key is set", async () => {
+  it("always calls OmniRoute on a paraphrase when the key is set", async () => {
     const request = vi.fn().mockResolvedValue(llmCommand());
     const command = await resolveCommand(
       "line these up on the left",
@@ -84,6 +58,25 @@ describe("resolveCommand", () => {
     expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith(keyed, "line these up on the left", 2);
     expect(command.op).toBe("align");
+  });
+
+  it("does not call OmniRoute when the URL is whitespace", async () => {
+    const request = vi.fn();
+    const command = await resolveCommand("line these up on the left", 2, {
+      ...keyed,
+      omnirouteUrl: "   ",
+    }, request);
+    expect(command.op).toBe("unknown");
+    expect(command.say).toMatch(/OmniRoute API key/);
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("does not call OmniRoute when the key is empty", async () => {
+    const request = vi.fn();
+    const command = await resolveCommand("align left", 2, emptyKeys, request);
+    expect(command.op).toBe("unknown");
+    expect(command.say).toMatch(/OmniRoute API key/);
+    expect(request).not.toHaveBeenCalled();
   });
 });
 

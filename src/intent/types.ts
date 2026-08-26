@@ -60,10 +60,7 @@ export const COORDINATE_KEYS = new Set([
 
 export const UNKNOWN_SAY =
   "Didn’t catch that. Try: perfect this, align left, snap to grid.";
-export const BARE_ALIGN_SAY =
-  "Didn’t catch that. Try: align left, right, top, bottom, or centers.";
-export const BARE_DISTRIBUTE_SAY =
-  "Didn’t catch that. Try: distribute horizontally or vertically.";
+export const MISSING_OMNIROUTE_SAY = "Add an OmniRoute API key in Settings.";
 
 export function unknownCommand(
   say = UNKNOWN_SAY,
@@ -91,7 +88,7 @@ function pickArgs(
   return args;
 }
 
-/** Validates LLM/parser JSON into a Command. Extra args dropped; coordinates fail closed. */
+/** Validates LLM JSON into a Command. Extra args dropped; coordinates fail closed. */
 export function isCommand(value: unknown): Command | null {
   if (!isRecord(value)) return null;
   if (hasCoordinateKeys(value)) return null;

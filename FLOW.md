@@ -20,13 +20,12 @@ Browser  :5173  →  Vite (repo root)
 
 ## User loop (this slice)
 
-1. Optional: open Settings and paste keys. Type-in works with empty keys.
+1. Open Settings and paste keys. Type-in needs OmniRoute; Talk needs Groq + OmniRoute.
 2. Type a command **or** click Talk (300ms–15s), then Stop talking.
 3. Talk → `POST /api/transcribe` (Groq). Empty text or `no_speech_prob >= 0.6` → unknown; skip OmniRoute.
-4. `resolveCommand`: keyword parser first.
-5. Parser hit, or bare align/distribute (`confidence === 0.8`) → that Command; no LLM.
-6. True miss and OmniRoute URL+key set → `POST /api/intent`.
-7. Preview shows Command JSON. Nothing is drawn.
+4. `resolveCommand` always `POST /api/intent` when OmniRoute URL+key are set.
+5. Missing OmniRoute key → toast. No regex fallback.
+6. Preview shows Command JSON. Nothing is drawn.
 
 ## Voice
 
@@ -40,8 +39,7 @@ No Web Speech. Missing Groq key → toast; do not record.
 
 ```
 transcript + selectionCount
-  → keywordParser
-  → on unknown/confidence 0 and keys set: OmniRoute chat completions
+  → OmniRoute chat completions (always, if keys set)
        thinking: { type: "disabled" }
        400 → omit thinking once
        parse choices[0].message.content → Command
@@ -51,11 +49,11 @@ transcript + selectionCount
 
 | Symptom | Look first |
 |---|---|
-| Type-in does nothing | `src/intent/keywordParser.ts` / `resolveCommand.ts` |
+| Type-in does nothing | Empty OmniRoute key; `src/intent/resolveCommand.ts` |
 | Talk toasts immediately | Empty Groq key in Settings |
 | 401 `missing_groq_key` | Authorization header missing; proxy must not use env |
 | Whisper 400 on file | Filename extension (`utterance.webm` / `.ogg` / `.mp4` / `.wav`) |
-| LLM ran on “align left” | Keywords-first broken |
+| “align left” skipped OmniRoute | Keyword table came back; intent must stay LLM-only |
 | `thinking: false` | Must be `{ "type": "disabled" }` |
 | Live tests 429 loop | Must not retry 429; check `tests/helpers/rateLimitGuard.ts` |
 | Opened a canvas | You ran `frontend/`; use repo-root `npm run dev` |

@@ -3,7 +3,6 @@ import { CommandInput } from "./chrome/CommandInput";
 import { CommandPreview } from "./chrome/CommandPreview";
 import { SettingsDrawer } from "./chrome/SettingsDrawer";
 import { StatusBar } from "./chrome/StatusBar";
-import { keywordParser } from "./intent/keywordParser";
 import { resolveCommand } from "./intent/resolveCommand";
 import { type Command, unknownCommand } from "./intent/types";
 import {
@@ -70,8 +69,10 @@ export default function App() {
   async function runText(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
+    setVoice("understanding");
     const parsed = await resolveCommand(trimmed, selectionCount, settings);
     setCommand(parsed);
+    setVoice("idle");
     showToast(parsed.say);
   }
 
@@ -112,18 +113,7 @@ export default function App() {
       return;
     }
     setTranscript(result.text);
-    const needsLlm =
-      settings.omnirouteApiKey.trim() &&
-      settings.omnirouteUrl.trim();
-    // Peek keywords so we can show understanding only when LLM will run.
-    const parsed = keywordParser(result.text);
-    if (
-      needsLlm &&
-      parsed.op === "unknown" &&
-      parsed.confidence === 0
-    ) {
-      setVoice("understanding");
-    }
+    setVoice("understanding");
     const commandResult = await resolveCommand(
       result.text,
       selectionCount,
