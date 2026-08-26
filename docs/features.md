@@ -52,7 +52,7 @@ Agent patch / Command JSON ─┘
 
 ### F1 — Board
 
-Select, box, pen, connect. Click-drag boxes write `pin` and a `size` token. Pen writes `ink.points` (stored; stripped from the agent projection). Selection is real ids. Wheel zoom / space-drag pan are camera-only.
+Select, box, pen, connect. Click-drag boxes write `pin` and a `size` token; releasing a box opens the label field (double-click also edits). Pen writes `ink.points` (stored; stripped from the agent projection). Selection is real ids. Wheel zoom / space-drag pan are camera-only. Pointer capture is only for drags so the label input can receive clicks.
 
 ### F2 — Voice
 

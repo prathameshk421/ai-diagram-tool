@@ -12,6 +12,8 @@ A paragraph like “build an AI RAG pipeline architecture with …” must not m
 
 Double-click label editing is **human-owned**, like drag-to-pin. The agent still cannot write coordinates.
 
+Chrome `pointerdown.detail` is not a reliable click-count (often 0), and capturing the pointer on the SVG steals events from a `foreignObject` input. Labels therefore open on box-up (auto-focus) and on native `dblclick`. Pointer capture is drag-only. A 4px move threshold keeps a rename click from writing `pin`.
+
 ## This slice: architecture board + agent path
 
 Voice → Groq Whisper → OmniRoute OpenCode Go DeepSeek → Command JSON → `arch-scene/v1` kernel → SVG board.

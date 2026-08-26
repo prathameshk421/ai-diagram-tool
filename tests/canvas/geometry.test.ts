@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { edgePath, sizeTokenFromDrag } from "../../src/canvas/geometry";
+import {
+  appendPenPoint,
+  edgePath,
+  pastMoveThreshold,
+  sizeTokenFromDrag,
+} from "../../src/canvas/geometry";
 
 describe("board geometry", () => {
   it("builds a straight segment and an ortho elbow", () => {
@@ -13,5 +18,21 @@ describe("board geometry", () => {
     expect(sizeTokenFromDrag(80, 40)).toBe("sm");
     expect(sizeTokenFromDrag(140, 80)).toBe("md");
     expect(sizeTokenFromDrag(240, 80)).toBe("lg");
+  });
+
+  it("treats sub-4px jitter as not a move", () => {
+    expect(pastMoveThreshold(1, 1)).toBe(false);
+    expect(pastMoveThreshold(4, 0)).toBe(true);
+  });
+
+  it("appends a pen up-point when move events never fired", () => {
+    expect(appendPenPoint([[10, 10]], [40, 12])).toEqual([
+      [10, 10],
+      [40, 12],
+    ]);
+    expect(appendPenPoint([[10, 10], [40, 12]], [40, 12])).toEqual([
+      [10, 10],
+      [40, 12],
+    ]);
   });
 });
