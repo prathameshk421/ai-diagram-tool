@@ -38,6 +38,7 @@ type VoiceState =
 
 const MIN_MS = 300;
 const MAX_MS = 15_000;
+const boardHistory = new SceneHistory();
 
 const COPY = {
   missingGroq: "Add a Groq API key in Settings.",
@@ -62,7 +63,7 @@ export default function App() {
   const recorderRef = useRef<VoiceRecorder | null>(null);
   const maxTimerRef = useRef<number | null>(null);
   const busyRef = useRef(false);
-  const historyRef = useRef(new SceneHistory());
+  const historyRef = useRef(boardHistory);
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
 
@@ -252,7 +253,7 @@ export default function App() {
           >
             {voice === "listening" ? "Stop talking" : "Talk"}
           </button>
-          <button type="button" className="secondary" onClick={undo}>
+          <button type="button" className="secondary" onClick={undo} data-testid="undo">
             Undo
           </button>
           <button

@@ -1,18 +1,17 @@
 import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 import { groupBox, nodeBox } from "../scene/boxes";
 import { cloneJson } from "../scene/clone";
-import { defaultNode } from "../scene/empty";
 import { nextId } from "../scene/ids";
 import type { Scene, SceneNode } from "../scene/types";
 import {
-  boxesIntersect,
   clientToWorld,
   diamondPoints,
   edgePath,
-  sizeTokenFromDrag,
+  rectFromCorners,
   type BoardTool,
 } from "./geometry";
 import { hitTest } from "./hit";
+import { commitDrawnBox, commitMarquee, commitPenStroke } from "./drawOps";
 
 export type { BoardTool };
 
@@ -94,13 +93,11 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
       return;
     }
     if (tool === "box") {
-      onCheckpoint();
       drag.current = { kind: "box", x: p.x, y: p.y };
       setDraft({ x: p.x, y: p.y, w: 0, h: 0 });
       return;
     }
     if (tool === "pen") {
-      onCheckpoint();
       drag.current = { kind: "pen", points: [[p.x, p.y]] };
       setPenDraft([[p.x, p.y]]);
       return;
@@ -186,12 +183,7 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
     }
     const p = worldFromEvent(event);
     if (current.kind === "box" || current.kind === "marquee") {
-      setDraft({
-        x: Math.min(current.x, p.x),
-        y: Math.min(current.y, p.y),
-        w: Math.abs(p.x - current.x),
-        h: Math.abs(p.y - current.y),
-      });
+      setDraft(rectFromCorners(current.x, current.y, p.x, p.y));
       return;
     }
     if (current.kind === "pen") {
@@ -213,38 +205,29 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
     }
   }
 
-  function onPointerUp() {
+  function onPointerUp(event: PointerEvent<SVGSVGElement>) {
     const current = drag.current;
     drag.current = null;
     if (!current) return;
-    if (current.kind === "box" && draft && draft.w > 16 && draft.h > 16) {
-      const next = cloneJson(scene);
-      const id = nextId(next, "n_");
-      next.nodes[id] = defaultNode({
-        label: "",
-        pin: { x: draft.x, y: draft.y },
-        size: sizeTokenFromDrag(draft.w, draft.h),
-        style: next.board.style,
-      });
-      next.selection = [id];
-      next.lastDrawn = id;
-      onChange(next);
+    const p = worldFromEvent(event);
+    if (current.kind === "box") {
+      const next = commitDrawnBox(scene, current.x, current.y, p.x, p.y);
+      if (next) {
+        onCheckpoint();
+        onChange(next);
+      }
     }
-    if (current.kind === "pen" && current.points.length > 1) {
-      const next = cloneJson(scene);
-      const id = nextId(next, "stroke_");
-      next.ink[id] = { convert: null, points: current.points };
-      next.selection = [id];
-      next.lastDrawn = id;
-      onChange(next);
+    if (current.kind === "pen") {
+      const next = commitPenStroke(scene, current.points);
+      if (next) {
+        onCheckpoint();
+        onChange(next);
+      }
     }
-    if (current.kind === "marquee" && draft) {
-      const next = cloneJson(scene);
-      const picked = Object.keys(next.nodes).filter((id) =>
-        boxesIntersect(draft, nodeBox(next.nodes[id])),
+    if (current.kind === "marquee") {
+      onChange(
+        commitMarquee(scene, rectFromCorners(current.x, current.y, p.x, p.y)),
       );
-      next.selection = picked;
-      onChange(next);
     }
     setDraft(null);
     setPenDraft(null);
@@ -261,6 +244,7 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
       onContextMenu={(event) => event.preventDefault()}
     >
       <defs>

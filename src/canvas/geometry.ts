@@ -50,3 +50,17 @@ export function clientToWorld(
     y: (clientY - rect.top - cam.y) / cam.k,
   };
 }
+
+export function rectFromCorners(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): { x: number; y: number; w: number; h: number } {
+  return {
+    x: Math.min(x0, x1),
+    y: Math.min(y0, y1),
+    w: Math.abs(x1 - x0),
+    h: Math.abs(y1 - y0),
+  };
+}
