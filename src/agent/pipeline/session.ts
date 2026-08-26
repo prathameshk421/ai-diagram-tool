@@ -2,6 +2,8 @@ import type { EditToolCall } from "../edit";
 import type { Command } from "../../intent/types";
 import type { Scene } from "../../scene/types";
 import type { Settings } from "../../settings/store";
+import type { AgentPlan } from "../roles/parsePlan";
+import type { ReviewVerdict } from "../roles/reviewPlan";
 import type { VerifyInput, VerifyResult } from "../verify/predicates";
 
 export type PipelineStage =
@@ -78,7 +80,19 @@ export type PipelineDeps = {
     scene: Scene;
     errors?: unknown;
   }) => Promise<{ calls: EditToolCall[]; say: string }>;
-  plan?: never; // Task 6
+  /** If missing and route is plan, return unknown, no write. */
+  plan?: (input: {
+    transcript: string;
+    intent: Extract<EnhancerOutput, { status: "ready" }>;
+    scene: Scene;
+    rejectReasons?: unknown;
+  }) => Promise<AgentPlan | null>;
+  /** Optional LLM review after deterministic approve. App must not wire this. */
+  reviewLlm?: (input: {
+    plan: AgentPlan;
+    transcript: string;
+    scene: Scene;
+  }) => Promise<ReviewVerdict>;
   /** Scene predicates + tool trace. Skip the rebuild loop if absent. */
   verify?: (input: VerifyInput) => VerifyResult;
 };

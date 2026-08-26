@@ -2,6 +2,13 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Plan agent and deterministic plan review
+
+- `runPlan` / `parsePlan` call `requestChatRole` role `plan` with `PLAN_PROMPT` and `projectForAgentSafe(scene)`. Plan JSON is `{goal, steps, expected?, say}`: 1–12 `EditToolCall`s, no geometry keys. Missing OmniRoute key, HTTP 500, and invalid JSON fail closed (`null`).
+- `reviewPlan` is **code-first**: `COORDINATE_LEAK`, `PLAN_TOO_LONG`, `BEAUTIFY_UNFROZEN`, `STRICT_UNNAMED`, `SIDECAR_INSERT` (add_edge A→B plus insert_on_path on that edge), empty steps. Optional `deps.reviewLlm` runs only after a deterministic approve; App does **not** wire it.
+- Orchestrator plan route: one replan (`TURN_CAPS.maxReplans === 1`) with `rejectReasons` fed back, then approved `plan.steps` reuse the shared `runToolLoop` (applyEditPlan + verifyEdit, `expected` from the plan). Exhaustion / missing `deps.plan` → original scene, `wrote: false`.
+- App `pipelineDeps` injects `runPlan`. Command fast path unchanged.
+
 ## 2026-08-26 — Build agent and deterministic scene verify
 
 - `runBuild` / `parseBuild` call `requestChatRole` role `build` with `BUILD_PROMPT` and `projectForAgentSafe(scene)`. Invalid JSON, unknown tools, geometry keys (`pin`/`x`/`y`/…), >8 calls, and HTTP 500 fail closed (empty calls, no write, no retry). Missing OmniRoute key asks without fetch.

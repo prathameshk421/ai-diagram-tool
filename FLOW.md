@@ -82,11 +82,15 @@ type-in / Talk transcript
            overlay: usableCommand → command; structural hint without multiStep → build (never default plan on LLM failure)
            command → requestCommand = resolveCommand → requestIntent
            build → runBuild (role build, projectForAgentSafe scene, errors from last fail)
-             applyEditPlan on original scene → verifyEdit (predicates, no image)
+             applyEditPlan + verifyEdit via shared runToolLoop
              pass → write; ask remediation → original scene + ClarifyPanel
              rebuild fail → retry build (max TURN_CAPS.maxVerifyAttempts = 2)
              still fail / 500 / invalid JSON → original scene, wrote false
-           plan → unknown
+           plan → runPlan (role plan, projectForAgentSafe scene, rejectReasons)
+             parsePlan → reviewPlan (code). Optional reviewLlm only if deps.reviewLlm (App does not wire)
+             reject → one replan (TURN_CAPS.maxReplans = 1) with reasons; second reject → original scene
+             approve → runToolLoop(plan.steps, expected=plan.expected) same as build apply+verify
+             missing deps.plan / null plan / 500 → unknown, no write
        hash mismatch / abort / throw → no write
 
 requestChatRole(role, system, payload)
@@ -107,6 +111,12 @@ runBuild = requestChatRole(role: "build")
   payload { transcript, intent, scene: projectForAgentSafe, errors }
   12s / 600 tokens
   parse {calls, say}; geometry / unknown tool / >8 calls / HTTP 500 → empty calls
+
+runPlan = requestChatRole(role: "plan")
+  payload { transcript, intent, scene: projectForAgentSafe, rejectReasons }
+  12s / 800 tokens
+  parse {goal, steps, expected?, say}; geometry / unknown tool / steps not in 1–12 / HTTP 500 / missing keys → null
+  reviewPlan is host code (no LLM). One replan then fail closed.
 ```
 
 ## Where a bug might live
@@ -122,7 +132,9 @@ runBuild = requestChatRole(role: "build")
 | Live tests 429 loop | Must not retry 429; check `tests/helpers/rateLimitGuard.ts` |
 | Agent moved a box | Patch leaked `pin.x` / `x`; see `src/scene/patch.ts` |
 | Beautify shuffled the graph | Freeze flags broken; beautify must restyle in place |
-| Redis added beside the DB | Insert left a sidecar; `verifyEdit` must fail `INSERT_SIDECAR` and rebuild (max 2) or roll back |
+| Redis added beside the DB | Insert left a sidecar; `verifyEdit` must fail `INSERT_SIDECAR` and rebuild (max 2) or roll back; `reviewPlan` must fail `SIDECAR_INSERT` if the plan also `add_edge`s A→B |
+| Plan looped forever | `TURN_CAPS.maxReplans === 1`; second reject returns the original SHA |
+| LLM review blocked a good plan | App must not wire `reviewLlm`; deterministic `reviewPlan` is the gate |
 | Build wrote after two verify fails | Exhaustion must return the original scene SHA |
 | Verify sent a screenshot | Verify is predicates + tool trace only — never an image |
 | Question changed the diagram | `applyTurn` must SHA-stabilize questions |

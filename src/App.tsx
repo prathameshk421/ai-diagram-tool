@@ -17,6 +17,7 @@ import type {
 import { runBuild } from "./agent/roles/runBuild";
 import { runEnhancer } from "./agent/roles/runEnhancer";
 import { runJudge } from "./agent/roles/runJudge";
+import { runPlan } from "./agent/roles/runPlan";
 import { verifyEdit } from "./agent/verify/predicates";
 import { resolveCommand } from "./intent/resolveCommand";
 import { requestIntent } from "./intent/omnirouteClient";
@@ -149,6 +150,7 @@ export default function App() {
       requestCommand: (t, n, sel) =>
         resolveCommand(t, n, currentSettings, requestIntent, sel),
       build: (input) => runBuild({ settings: currentSettings, ...input }),
+      plan: (input) => runPlan({ settings: currentSettings, ...input }),
       verify: verifyEdit,
     };
   }

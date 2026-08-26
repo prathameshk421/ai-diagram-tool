@@ -10,6 +10,9 @@ import {
 import { sceneHash } from "../../scene/hash";
 import { applyTurn, isQuestion } from "../../scene/turn";
 import type { Scene } from "../../scene/types";
+import type { AgentPlan } from "../roles/parsePlan";
+import { reviewPlan } from "../roles/reviewPlan";
+import type { VerifyInput } from "../verify/predicates";
 import { TURN_CAPS } from "./budgets";
 import type {
   EnhancerOutput,
@@ -182,6 +185,141 @@ export async function runPipeline(
 
   const hashMismatch = (): boolean => liveHashOf(input, startHash) !== startHash;
 
+  type ToolLoopResult =
+    | { kind: "done"; out: PipelineOutput }
+    | { kind: "rebuild"; errors: unknown; say: string };
+
+  const runToolLoop = (
+    original: Scene,
+    calls: EditToolCall[],
+    say: string,
+    expected: VerifyInput["expected"],
+    judgeRoute: "build" | "plan",
+    enhancedSummary: string | undefined,
+  ): ToolLoopResult => {
+    if (aborted()) {
+      return { kind: "done", out: unknownOut(original, llmCalls) };
+    }
+    if (hashMismatch()) {
+      return {
+        kind: "done",
+        out: unknownOut(original, llmCalls, BOARD_CHANGED_SAY, {
+          stage: "idle",
+          enhancedSummary,
+          judgeRoute,
+          say: BOARD_CHANGED_SAY,
+        }),
+      };
+    }
+    const edited = applyEditPlan(original, calls, {
+      transcript: trimmed,
+      maxCalls: 12,
+    });
+    if (edited.ask) {
+      return {
+        kind: "done",
+        out: withTurnAsk(
+          {
+            scene: original,
+            wrote: false,
+            ask: true,
+            answer: null,
+            say: edited.say,
+          },
+          trimmed,
+          startHash,
+          {
+            command: null,
+            llmCalls,
+            enhancedSummary,
+            judgeRoute,
+          },
+        ),
+      };
+    }
+    if (!edited.ok) {
+      return { kind: "rebuild", errors: edited.errors, say: edited.say };
+    }
+    if (!deps.verify) {
+      return {
+        kind: "done",
+        out: withTurnAsk(
+          {
+            scene: edited.scene,
+            wrote: edited.wrote,
+            ask: false,
+            answer: edited.answer,
+            say,
+          },
+          trimmed,
+          startHash,
+          {
+            command: null,
+            llmCalls,
+            enhancedSummary,
+            judgeRoute,
+          },
+        ),
+      };
+    }
+    const verified = deps.verify({
+      before: original,
+      after: edited.scene,
+      transcript: trimmed,
+      calls,
+      expected,
+    });
+    if (verified.pass) {
+      return {
+        kind: "done",
+        out: withTurnAsk(
+          {
+            scene: edited.scene,
+            wrote: edited.wrote,
+            ask: false,
+            answer: edited.answer,
+            say,
+          },
+          trimmed,
+          startHash,
+          {
+            command: null,
+            llmCalls,
+            enhancedSummary,
+            judgeRoute,
+          },
+        ),
+      };
+    }
+    if (verified.remediation === "ask") {
+      return {
+        kind: "done",
+        out: withTurnAsk(
+          {
+            scene: original,
+            wrote: false,
+            ask: true,
+            answer: null,
+            say: verified.failures[0]?.detail || SELECT_SAY,
+          },
+          trimmed,
+          startHash,
+          {
+            command: null,
+            llmCalls,
+            enhancedSummary,
+            judgeRoute,
+          },
+        ),
+      };
+    }
+    return {
+      kind: "rebuild",
+      errors: verified.failures,
+      say: verified.failures[0]?.detail || say,
+    };
+  };
+
   try {
     const capped = bump();
     if (capped) return capped;
@@ -272,12 +410,87 @@ export async function runPipeline(
     }
 
     if (route === "plan") {
-      return unknownOut(scene, llmCalls, unknownCommand().say, {
-        stage: "idle",
-        enhancedSummary: intent.summary,
-        judgeRoute: "plan",
-        say: unknownCommand().say,
-      });
+      if (!deps.plan) {
+        return unknownOut(scene, llmCalls, unknownCommand().say, {
+          stage: "idle",
+          enhancedSummary: intent.summary,
+          judgeRoute: "plan",
+          say: unknownCommand().say,
+        });
+      }
+      const original = scene;
+      let replan = 0;
+      let rejectReasons: unknown;
+      while (true) {
+        const planCap = bump();
+        if (planCap) return planCap;
+        let planned: AgentPlan | null;
+        try {
+          planned = await deps.plan({
+            transcript: trimmed,
+            intent,
+            scene: original,
+            rejectReasons,
+          });
+        } catch {
+          return unknownOut(original, llmCalls);
+        }
+        if (aborted()) return unknownOut(original, llmCalls);
+        if (!planned) {
+          return unknownOut(original, llmCalls, unknownCommand().say, {
+            stage: "idle",
+            enhancedSummary: intent.summary,
+            judgeRoute: "plan",
+            say: unknownCommand().say,
+          });
+        }
+        let review = reviewPlan(planned, {
+          transcript: trimmed,
+          scene: original,
+        });
+        if (review.verdict === "approve" && deps.reviewLlm) {
+          const reviewCap = bump();
+          if (reviewCap) return reviewCap;
+          try {
+            review = await deps.reviewLlm({
+              plan: planned,
+              transcript: trimmed,
+              scene: original,
+            });
+          } catch {
+            return unknownOut(original, llmCalls);
+          }
+          if (aborted()) return unknownOut(original, llmCalls);
+        }
+        if (review.verdict === "approve") {
+          const loop = runToolLoop(
+            original,
+            planned.steps,
+            planned.say,
+            planned.expected,
+            "plan",
+            intent.summary,
+          );
+          if (loop.kind === "done") return loop.out;
+          return unknownOut(original, llmCalls, loop.say, {
+            stage: "idle",
+            enhancedSummary: intent.summary,
+            judgeRoute: "plan",
+            say: loop.say,
+          });
+        }
+        if (replan >= TURN_CAPS.maxReplans) {
+          const say = review.reasons[0]?.detail || unknownCommand().say;
+          return unknownOut(original, llmCalls, say, {
+            stage: "idle",
+            enhancedSummary: intent.summary,
+            judgeRoute: "plan",
+            say,
+          });
+        }
+        replan += 1;
+        rejectReasons = review.reasons;
+      }
     }
 
     if (route === "build") {
@@ -306,107 +519,17 @@ export async function runPipeline(
         } catch {
           return unknownOut(original, llmCalls);
         }
-        if (aborted()) return unknownOut(original, llmCalls);
-        if (hashMismatch()) {
-          return unknownOut(original, llmCalls, BOARD_CHANGED_SAY, {
-            stage: "idle",
-            enhancedSummary: intent.summary,
-            judgeRoute: "build",
-            say: BOARD_CHANGED_SAY,
-          });
-        }
-        const edited = applyEditPlan(original, built.calls, {
-          transcript: trimmed,
-        });
-        if (edited.ask) {
-          return withTurnAsk(
-            {
-              scene: original,
-              wrote: false,
-              ask: true,
-              answer: null,
-              say: edited.say,
-            },
-            trimmed,
-            startHash,
-            {
-              command: null,
-              llmCalls,
-              enhancedSummary: intent.summary,
-              judgeRoute: "build",
-            },
-          );
-        }
-        if (!edited.ok) {
-          lastErrors = edited.errors;
-          lastSay = edited.say;
-          continue;
-        }
-        if (!deps.verify) {
-          return withTurnAsk(
-            {
-              scene: edited.scene,
-              wrote: edited.wrote,
-              ask: false,
-              answer: edited.answer,
-              say: built.say,
-            },
-            trimmed,
-            startHash,
-            {
-              command: null,
-              llmCalls,
-              enhancedSummary: intent.summary,
-              judgeRoute: "build",
-            },
-          );
-        }
-        const verified = deps.verify({
-          before: original,
-          after: edited.scene,
-          transcript: trimmed,
-          calls: built.calls,
-        });
-        if (verified.pass) {
-          return withTurnAsk(
-            {
-              scene: edited.scene,
-              wrote: edited.wrote,
-              ask: false,
-              answer: edited.answer,
-              say: built.say,
-            },
-            trimmed,
-            startHash,
-            {
-              command: null,
-              llmCalls,
-              enhancedSummary: intent.summary,
-              judgeRoute: "build",
-            },
-          );
-        }
-        if (verified.remediation === "ask") {
-          return withTurnAsk(
-            {
-              scene: original,
-              wrote: false,
-              ask: true,
-              answer: null,
-              say: verified.failures[0]?.detail || SELECT_SAY,
-            },
-            trimmed,
-            startHash,
-            {
-              command: null,
-              llmCalls,
-              enhancedSummary: intent.summary,
-              judgeRoute: "build",
-            },
-          );
-        }
-        lastErrors = verified.failures;
-        lastSay = verified.failures[0]?.detail || lastSay;
+        const loop = runToolLoop(
+          original,
+          built.calls,
+          built.say,
+          undefined,
+          "build",
+          intent.summary,
+        );
+        if (loop.kind === "done") return loop.out;
+        lastErrors = loop.errors;
+        lastSay = loop.say;
       }
       return unknownOut(original, llmCalls, lastSay, {
         stage: "idle",

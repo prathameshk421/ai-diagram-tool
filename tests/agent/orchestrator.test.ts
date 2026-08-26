@@ -484,3 +484,114 @@ describe("runPipeline build verify loop", () => {
     expect(noEdge(result.scene, "api", "db")).toBe(true);
   });
 });
+
+const sidecarPlan = {
+  goal: "insert redis",
+  steps: [
+    { tool: "add_edge" as const, args: { from: "api", to: "db" } },
+    { tool: "insert_on_path" as const, args: { node: "redis", on: "api_to_db" } },
+  ],
+  say: "Inserted Redis.",
+};
+
+const approvedRedisPlan = {
+  goal: "insert redis in front of the db",
+  steps: redisInsertCalls,
+  expected: {
+    nodesAdded: ["redis"],
+    hasEdge: [
+      { from: "api", to: "redis" },
+      { from: "redis", to: "db" },
+    ],
+    noEdge: [{ from: "api", to: "db" }],
+  },
+  say: "Inserted Redis.",
+};
+
+describe("runPipeline plan review then tool loop", () => {
+  it("replans once then applies an approved insert with real verify", async () => {
+    expect(TURN_CAPS.maxReplans).toBe(1);
+    const scene = apiDbScene();
+    scene.selection = [];
+    const before = sceneHash(scene);
+    const plan = vi
+      .fn()
+      .mockResolvedValueOnce(sidecarPlan)
+      .mockResolvedValueOnce(approvedRedisPlan);
+    const result = await runPipeline(
+      {
+        transcript: "add Redis in front of the DB",
+        scene,
+        settings: keyed,
+        pending: null,
+      },
+      deps({
+        enhance: async () => readyInsert,
+        judge: async () => ({ route: "plan", reason: "multi-step" }),
+        verify: verifyEdit,
+        plan,
+      }),
+    );
+    expect(plan).toHaveBeenCalledTimes(2);
+    expect(plan.mock.calls[1][0].rejectReasons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "SIDECAR_INSERT" }),
+      ]),
+    );
+    expect(result.wrote).toBe(true);
+    expect(result.ask).toBe(false);
+    expect(sceneHash(result.scene)).not.toBe(before);
+    expect(result.scene.edges.api_to_db).toBeUndefined();
+    expect(hasEdge(result.scene, "api", "redis")).toBe(true);
+    expect(hasEdge(result.scene, "redis", "db")).toBe(true);
+    expect(noEdge(result.scene, "api", "db")).toBe(true);
+  });
+
+  it("fails closed after one replan when every plan is rejected", async () => {
+    const scene = apiDbScene();
+    const before = sceneHash(scene);
+    const plan = vi.fn(async () => sidecarPlan);
+    const result = await runPipeline(
+      {
+        transcript: "add Redis in front of the DB",
+        scene,
+        settings: keyed,
+        pending: null,
+      },
+      deps({
+        enhance: async () => readyInsert,
+        judge: async () => ({ route: "plan", reason: "multi-step" }),
+        verify: verifyEdit,
+        plan,
+      }),
+    );
+    expect(plan).toHaveBeenCalledTimes(2);
+    expect(result.wrote).toBe(false);
+    expect(sceneHash(result.scene)).toBe(before);
+    expect(result.scene.edges.api_to_db).toBeDefined();
+    expect(result.say).toMatch(/sidecar|add_edge|insert/i);
+  });
+
+  it("returns unknown and no write when judge routes plan without a plan dep", async () => {
+    const scene = apiDbScene();
+    const before = sceneHash(scene);
+    const result = await runPipeline(
+      {
+        transcript: "add redis then cache then the db",
+        scene,
+        settings: keyed,
+        pending: null,
+      },
+      deps({
+        enhance: async () => readyInsert,
+        judge: async () => ({ route: "plan", reason: "multi-step" }),
+      }),
+    );
+    expect(result.wrote).toBe(false);
+    expect(sceneHash(result.scene)).toBe(before);
+    expect(result.say === UNKNOWN_SAY || /unknown|catch/i.test(result.say)).toBe(
+      true,
+    );
+  });
+});
+

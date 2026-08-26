@@ -39,7 +39,7 @@ const GEOMETRY_KEYS = new Set([
   "cy",
 ]);
 
-function stripFences(raw: string): string {
+export function stripFences(raw: string): string {
   return raw
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
@@ -47,11 +47,11 @@ function stripFences(raw: string): string {
     .trim();
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function hasGeometry(value: unknown): boolean {
+export function hasGeometry(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(hasGeometry);
   if (!isRecord(value)) return false;
   for (const [key, child] of Object.entries(value)) {
@@ -65,6 +65,24 @@ function isBuildTool(value: unknown): value is EditToolCall["tool"] {
   return typeof value === "string" && BUILD_TOOLS.has(value as EditToolCall["tool"]);
 }
 
+/** Unknown tool, geometry keys, or more than maxCalls → null. */
+export function parseEditCalls(
+  rawCalls: unknown,
+  maxCalls: number,
+): EditToolCall[] | null {
+  if (!Array.isArray(rawCalls)) return null;
+  if (rawCalls.length > maxCalls) return null;
+  const calls: EditToolCall[] = [];
+  for (const item of rawCalls) {
+    if (!isRecord(item) || !isBuildTool(item.tool) || !isRecord(item.args)) {
+      return null;
+    }
+    if (hasGeometry(item.args)) return null;
+    calls.push({ tool: item.tool, args: item.args } as EditToolCall);
+  }
+  return calls;
+}
+
 /** Valid build JSON only. Unknown tool, geometry keys, or >8 calls → null. */
 export function parseBuild(
   raw: string,
@@ -76,16 +94,7 @@ export function parseBuild(
     return null;
   }
   if (!isRecord(parsed) || typeof parsed.say !== "string") return null;
-  if (!Array.isArray(parsed.calls)) return null;
-  if (parsed.calls.length > MAX_CALLS) return null;
-
-  const calls: EditToolCall[] = [];
-  for (const item of parsed.calls) {
-    if (!isRecord(item) || !isBuildTool(item.tool) || !isRecord(item.args)) {
-      return null;
-    }
-    if (hasGeometry(item.args)) return null;
-    calls.push({ tool: item.tool, args: item.args } as EditToolCall);
-  }
+  const calls = parseEditCalls(parsed.calls, MAX_CALLS);
+  if (!calls) return null;
   return { calls, say: parsed.say };
 }

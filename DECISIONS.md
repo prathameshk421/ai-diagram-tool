@@ -2,6 +2,14 @@
 
 **This file is for the agent.** Record why a stack, library, test, or design was chosen. Add a section whenever you decide something non-obvious.
 
+## Plan is reviewed in code first; optional LLM review stays unwired
+
+Judge may route `plan` for multi-step edits. The plan LLM returns `{goal, steps, expected?, say}` (`EditToolCall[]`, max 12), never coordinates. The host runs **`reviewPlan` in code** before any write: coordinate keys, length, beautify `freezePins: false`, strict unnamed `add_node`, and sidecar insert (`add_edge` A→B plus `insert_on_path` on that existing edge). Insert-on-path alone is allowed (the kernel splices). Tests must pass with no LLM review.
+
+One replan (`TURN_CAPS.maxReplans === 1`) sends `rejectReasons` back into the next plan payload. A second reject fails closed (`wrote: false`, original SHA). Approved steps reuse the build `runToolLoop` (`applyEditPlan` + `verifyEdit` with `plan.expected`). Verify failures after an approved plan do not start another plan loop.
+
+`deps.reviewLlm` is optional and runs only after a deterministic approve. Production App wires `runPlan` and **does not** wire `reviewLlm`, so a hung or biased reviewer cannot gate writes. HTTP 500 / missing keys / parse failure return `null` (unknown, no write). No infinite plan while-loop: the replan counter is the only retry.
+
 ## Build role emits tools; verify is deterministic (no vision)
 
 Judge may route `build`. The build LLM returns `{calls, say}` (`EditToolCall[]`), never coordinates. The host applies those tools with `applyEditPlan` on the **pre-build** scene, then `verifyEdit` checks the result: `validateScene`, insert splice (no sidecar A→B), beautify freeze (ids + kinds + pins), no coordinate keys in tool args, optional `expected` graph predicates.
@@ -10,7 +18,7 @@ Verify is **not** an LLM and does not take a screenshot. Pins in the stored scen
 
 Rebuild cap is `TURN_CAPS.maxVerifyAttempts === 2` (each build counts as an LLM call). Failures (apply errors or verify `rebuild`) go back as `errors` in the next build payload. After two misses the host returns the original scene (`wrote: false`) so a bad build cannot dirty the file SHA. `ask` (deictic / strict) does not rebuild. HTTP 500 is not retried.
 
-`PipelineDeps.build` / `verify` stay injectable so orchestrator tests can mock a failing verifier without calling OmniRoute. Production App wires `runBuild` + `verifyEdit`. Plan/review roles stay unimplemented.
+`PipelineDeps.build` / `verify` stay injectable so orchestrator tests can mock a failing verifier without calling OmniRoute. Production App wires `runBuild` + `verifyEdit`. Plan is a later role: `reviewPlan` is deterministic; optional LLM review is not wired in App.
 
 ## Pipeline roles are injectable; production enhancer/judge call OmniRoute
 
@@ -20,6 +28,7 @@ Rebuild cap is `TURN_CAPS.maxVerifyAttempts === 2` (each build counts as an LLM 
 - judge → `runJudge` (`requestChatRole` role judge + `parseJudge` + structural overlay)
 - requestCommand → `resolveCommand(..., requestIntent)` so a ready enhancer without `command` still hits OmniRoute
 - build → `runBuild` (`requestChatRole` role build + `parseBuild`)
+- plan → `runPlan` (`requestChatRole` role plan + `parsePlan`); review is `reviewPlan` in the orchestrator (not an App-wired LLM)
 - verify → `verifyEdit` (scene predicates; injectable in tests)
 
 If `enhance.command` is a valid Command (`confidence >= 0.45`, `op !== unknown`), the host overlays `route: "command"` and **does not** call `requestCommand` (simple path can finish in 1 call). The enhancer LLM may include that Command JSON for a filled layout op; the host does **not** regex align/perfect.
