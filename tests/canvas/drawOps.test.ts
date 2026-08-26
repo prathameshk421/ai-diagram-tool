@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitDrawnBox, commitPenStroke } from "../../src/canvas/drawOps";
+import { commitDrawnBox, commitLabel, commitPenStroke } from "../../src/canvas/drawOps";
 import { emptyScene } from "../../src/scene/empty";
 import { SceneHistory } from "../../src/scene/history";
 import { apiDbScene } from "../scene/fixtures";
@@ -33,6 +33,17 @@ describe("commitPenStroke", () => {
     ]);
     expect(next!.ink.stroke_1.points?.length).toBe(3);
     expect(next!.lastDrawn).toBe("stroke_1");
+  });
+});
+
+describe("commitLabel", () => {
+  it("renames a node without touching pins", () => {
+    const scene = apiDbScene();
+    const pin = { ...scene.nodes.api.pin! };
+    const next = commitLabel(scene, "api", "Orchestrator");
+    expect(next.nodes.api.label).toBe("Orchestrator");
+    expect(next.nodes.api.pin).toEqual(pin);
+    expect(scene.nodes.api.label).toBe("API");
   });
 });
 

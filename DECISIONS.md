@@ -6,6 +6,12 @@
 
 Software / system architecture diagrams (system design, AI/ML pipelines, cloud infra). Not building floor plans.
 
+## Whole-board generation is a host refuse, not a keyword op table
+
+A paragraph like “build an AI RAG pipeline architecture with …” must not mint a graph. That is classified as a **host WONTFIX** (same family as undo), not an OmniRoute shortcut for `align`. Short commands such as “align left” still go to the LLM.
+
+Double-click label editing is **human-owned**, like drag-to-pin. The agent still cannot write coordinates.
+
 ## This slice: architecture board + agent path
 
 Voice → Groq Whisper → OmniRoute OpenCode Go DeepSeek → Command JSON → `arch-scene/v1` kernel → SVG board.

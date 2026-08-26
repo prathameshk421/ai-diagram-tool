@@ -2,6 +2,12 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — RAG edge cases, whole-board refuse, double-click labels
+
+- Host channel: long “build/generate a … architecture/pipeline” prompts do not write the scene (SHA stable). Color targeting and split-without-edges ask.
+- Double-click a box to set `label` (human-owned; no coordinates).
+- Kernel tests for a RAG pipeline: insert-on-path cache, beautify freezePins, fan-out that keeps leftover edges, async dashed ingest, annotate-path, whole-board WONTFIX.
+
 ## 2026-08-26 — arch-scene/v1 kernel + SVG architecture board
 
 - Locked `arch-scene/v1` in `src/scene/`: schema, validator, RFC6902 patch (rejects coordinates / ink points), passes (beautify with implied freezes, convert-ink same-id, insert-on-path, merge, tidy-layout, unoverlap, restyle-icons, annotate-path), constraints, referent resolver, delete+retarget, SHA-stable question turns, host undo journal.

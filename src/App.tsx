@@ -18,7 +18,7 @@ import {
 import { applyTurn } from "./scene/turn";
 import { demoScene } from "./scene/empty";
 import { SceneHistory } from "./scene/history";
-import { hostUndoKind } from "./scene/host";
+import { hostUndoKind, isWholeBoardGen } from "./scene/host";
 import { loadScene, saveScene } from "./scene/persist";
 import { projectForAgent } from "./scene/project";
 import type { Scene } from "./scene/types";
@@ -120,6 +120,16 @@ export default function App() {
       const next = historyRef.current.undoHunk(undoKind.hunk, sceneRef.current);
       setScene(next);
       showToast(`Reverted ${undoKind.hunk}.`);
+      return;
+    }
+    if (isWholeBoardGen(trimmed)) {
+      const result = applyTurn(
+        sceneRef.current,
+        { type: "ask", say: "" },
+        trimmed,
+      );
+      setAnswer(result.answer);
+      showToast(result.say);
       return;
     }
     setVoice("understanding");

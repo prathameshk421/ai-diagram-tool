@@ -26,10 +26,11 @@ Browser  :5173  →  Vite (repo root)
 3. Type a command **or** click Talk (300ms–15s), then Stop talking.
 4. Talk → `POST /api/transcribe` (Groq). Empty text or `no_speech_prob >= 0.6` → unknown; skip OmniRoute.
 5. Host undo phrases (`undo`, `put it back`, `undo last kafka bit`) skip OmniRoute and restore a snapshot / journal hunk.
-6. Otherwise `resolveCommand` always `POST /api/intent` when OmniRoute URL+key are set. Payload: `{ transcript, selectionCount, selection }`.
-7. Missing OmniRoute key → toast. No regex fallback.
-8. `applyTurn` maps Command JSON (or a JSON Patch) onto the scene through the kernel. Questions return an answer and do not write.
-9. Preview shows Command JSON, optional answer, and the **agent-facing** scene (no `ink.points`, plus `view`).
+6. Host WONTFIX: a long “build/generate a … architecture/pipeline” paragraph does not write the file and does not call OmniRoute.
+7. Otherwise `resolveCommand` always `POST /api/intent` when OmniRoute URL+key are set. Payload: `{ transcript, selectionCount, selection }`.
+8. Missing OmniRoute key → toast. No regex fallback.
+9. `applyTurn` maps Command JSON (or a JSON Patch) onto the scene through the kernel. Questions return an answer and do not write.
+10. Preview shows Command JSON, optional answer, and the **agent-facing** scene (no `ink.points`, plus `view`).
 
 ## Scene kernel
 

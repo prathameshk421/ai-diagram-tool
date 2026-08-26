@@ -11,7 +11,7 @@ import {
   type BoardTool,
 } from "./geometry";
 import { hitTest } from "./hit";
-import { commitDrawnBox, commitMarquee, commitPenStroke } from "./drawOps";
+import { commitDrawnBox, commitLabel, commitMarquee, commitPenStroke } from "./drawOps";
 
 export type { BoardTool };
 
@@ -42,6 +42,7 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
     h: number;
   } | null>(null);
   const [penDraft, setPenDraft] = useState<[number, number][] | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
   const connectFrom = useRef<string | null>(null);
 
@@ -103,6 +104,11 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
       return;
     }
     const hit = hitTest(scene, p.x, p.y);
+    if (hit && hit in scene.nodes && event.detail === 2 && tool === "select") {
+      setEditingId(hit);
+      connectFrom.current = null;
+      return;
+    }
     if (tool === "connect") {
       if (!hit || !(hit in scene.nodes)) return;
       if (!connectFrom.current) {
@@ -331,6 +337,13 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
             id={id}
             node={node}
             selected={scene.selection.includes(id)}
+            editing={editingId === id}
+            onCommit={(label) => {
+              onCheckpoint();
+              onChange(commitLabel(scene, id, label));
+              setEditingId(null);
+            }}
+            onCancel={() => setEditingId(null)}
           />
         ))}
         {scene.board.legend ? <Legend scene={scene} /> : null}
@@ -364,10 +377,16 @@ function NodeGlyph({
   id,
   node,
   selected,
+  editing,
+  onCommit,
+  onCancel,
 }: {
   id: string;
   node: SceneNode;
   selected: boolean;
+  editing: boolean;
+  onCommit: (label: string) => void;
+  onCancel: () => void;
 }) {
   const box = nodeBox(node);
   const stroke = selected ? "#2f6fed" : node.style === "clean" ? "#8aa0b8" : "#c5d0dc";
@@ -377,14 +396,34 @@ function NodeGlyph({
   return (
     <g data-node={id}>
       <NodeShape box={box} node={node} fill={fill} stroke={stroke} sw={sw} />
-      <text
-        x={box.x + box.w / 2}
-        y={box.y + box.h / 2 + 4}
-        textAnchor="middle"
-        className="board-label"
-      >
-        {label}
-      </text>
+      {editing ? (
+        <foreignObject x={box.x + 6} y={box.y + box.h / 2 - 12} width={box.w - 12} height={24}>
+          <input
+            autoFocus
+            defaultValue={node.label}
+            aria-label={`Label ${id}`}
+            className="board-label-input"
+            onPointerDown={(event) => event.stopPropagation()}
+            onBlur={(event) => onCommit(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                onCommit(event.currentTarget.value);
+              }
+              if (event.key === "Escape") onCancel();
+            }}
+          />
+        </foreignObject>
+      ) : (
+        <text
+          x={box.x + box.w / 2}
+          y={box.y + box.h / 2 + 4}
+          textAnchor="middle"
+          className="board-label"
+        >
+          {label}
+        </text>
+      )}
     </g>
   );
 }

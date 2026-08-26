@@ -54,3 +54,10 @@ export function commitMarquee(scene: Scene, box: {
   );
   return next;
 }
+
+export function commitLabel(scene: Scene, id: string, label: string): Scene {
+  if (!(id in scene.nodes)) return scene;
+  const next = cloneJson(scene);
+  next.nodes[id].label = label.trim();
+  return next;
+}

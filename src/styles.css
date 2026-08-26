@@ -73,6 +73,17 @@ button.tool.on {
   font-size: 11px;
 }
 
+.board-label-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: 12px ui-sans-serif, system-ui, sans-serif;
+  color: #e7ecf3;
+  background: #121820;
+  border: 1px solid #2f6fed;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
 .chrome {
   flex: 0 0 auto;
   display: flex;

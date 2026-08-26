@@ -12,7 +12,7 @@ export {
 } from "./commandAdapter";
 export { applyTurn, isQuestion, explainScene, type AgentTurn } from "./turn";
 export { SceneHistory } from "./history";
-export { hostUndoKind, isDuplicateBoardAsk } from "./host";
+export { hostUndoKind, isDuplicateBoardAsk, isWholeBoardGen } from "./host";
 export { sceneHash } from "./hash";
 export { serializeScene, parseScene, loadScene, saveScene } from "./persist";
 export { nodeBox, groupBox, inkBBox, nodeSize } from "./boxes";

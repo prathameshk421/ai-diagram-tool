@@ -1,7 +1,7 @@
 import { cloneJson } from "./clone";
 import { applyCommand, isDeictic, needsSelection } from "./commandAdapter";
 import { sceneHash } from "./hash";
-import { isDuplicateBoardAsk } from "./host";
+import { isDuplicateBoardAsk, isColorQuery, isSplitAsk, isWholeBoardGen, COLOR_SAY, SPLIT_SAY, WHOLE_BOARD_SAY } from "./host";
 import { compile } from "./kernel";
 import { applyJsonPatch, AgentWriteError } from "./patch";
 import type { Command } from "../intent/types";
@@ -62,10 +62,37 @@ export function applyTurn(
   transcript: string,
 ): TurnResult {
   const beforeHash = sceneHash(scene);
+  if (isWholeBoardGen(transcript)) {
+    return {
+      scene,
+      say: WHOLE_BOARD_SAY,
+      wrote: false,
+      ask: false,
+      answer: WHOLE_BOARD_SAY,
+    };
+  }
   if (isDuplicateBoardAsk(transcript)) {
     const say =
       "v1 keeps one id namespace; a second diagram beside this one is out of scope.";
     return { scene, say, wrote: false, ask: false, answer: say };
+  }
+  if (isColorQuery(transcript)) {
+    return {
+      scene,
+      say: COLOR_SAY,
+      wrote: false,
+      ask: true,
+      answer: null,
+    };
+  }
+  if (isSplitAsk(transcript)) {
+    return {
+      scene,
+      say: SPLIT_SAY,
+      wrote: false,
+      ask: true,
+      answer: null,
+    };
   }
   if (isQuestion(transcript)) {
     const say = explainScene(scene, transcript);
