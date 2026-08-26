@@ -1,4 +1,5 @@
 import type { PendingAsk } from "../agent/pipeline/session";
+import { canUseSelection } from "./clarifySelection";
 
 type Props = {
   ask: PendingAsk;
@@ -30,6 +31,13 @@ export function ClarifyPanel({
           ))}
         </div>
       ) : null}
+      <button
+        type="button"
+        disabled={!canUseSelection(selection)}
+        onClick={() => onAnswerSelection(selection)}
+      >
+        Use selection
+      </button>
       <button type="button" className="secondary" onClick={onCancel}>
         Cancel
       </button>

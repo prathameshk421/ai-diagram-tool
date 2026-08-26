@@ -2,6 +2,12 @@
 
 **This file is for the agent.** Record why a stack, library, test, or design was chosen. Add a section whenever you decide something non-obvious.
 
+## Talk and type-in share submitTranscript; Use selection is App chrome
+
+Talk after a successful STT must not call `executePipeline` directly. `runPipeline` treats `hostUndoKind` as a host skip and returns unknown without restoring SceneHistory — that is why spoken “undo” was a no-op. Both Talk and type-in go through `submitTranscript` (`runText`). `finishRecording` holds `busyRef` only during transcribe, then releases it before submit so the pipeline lock is not double-held.
+
+Completing a deictic ask with empty `candidates` is App chrome: ClarifyPanel **Use selection** reapplies `originalTranscript` with the live board ids. The orchestrator does not consume a use-selection event.
+
 ## Approach C (locked): roles + typed tools + Command fast path
 
 Rejected A (six vision agents with screenshots) and B (host regex “isStructural” plus one patch LLM). This slice is **C**: full role contracts (enhancer → judge → command **or** build/plan), a closed `applyEditPlan` tool set, Command JSON as the fast path for the nine layout ops, deterministic `verifyEdit` / `reviewPlan` (no vision verify), and whole-board generation still host WONTFIX. Judge overlay never defaults to `plan` on LLM failure. Host must not regex-route align/perfect.

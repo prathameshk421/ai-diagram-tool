@@ -237,7 +237,8 @@ export default function App() {
     }
   }
 
-  async function runText(text: string) {
+  /** Type-in and Talk share this path so spoken undo hits SceneHistory, not runPipeline. */
+  async function submitTranscript(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
     const undoKind = hostUndoKind(trimmed);
@@ -259,6 +260,10 @@ export default function App() {
     } finally {
       busyRef.current = false;
     }
+  }
+
+  async function runText(text: string) {
+    await submitTranscript(text);
   }
 
   function answerWithSelection(ids: string[]) {
@@ -307,11 +312,11 @@ export default function App() {
       return;
     }
     setTranscript(result.text);
-    try {
-      await executePipeline(result.text);
-    } finally {
-      busyRef.current = false;
-    }
+    setVoice("idle");
+    // Release the transcribe lock before submitTranscript, which takes its own
+    // busy lock for the pipeline. Holding it here made runText a no-op.
+    busyRef.current = false;
+    await submitTranscript(result.text);
   }
 
   async function toggleTalk() {

@@ -25,12 +25,12 @@ Browser  :5173  →  Vite (repo root)
 2. Draw on the board (box / pen / connect) or use the demo nodes. Releasing a box opens the label field. Select objects. Drag writes `pin` only after a 4px threshold.
 3. Type a command **or** click Talk (300ms–15s), then Stop talking.
 4. Talk → `POST /api/transcribe` (Groq). Empty text or `no_speech_prob >= 0.6` → unknown; skip OmniRoute.
-5. Host undo phrases (`undo`, `put it back`, `undo last kafka bit`) skip the pipeline and restore a snapshot / journal hunk.
+5. After STT succeeds, Talk uses the **same** `submitTranscript` path as type-in (`runText`). Host undo phrases (`undo`, `put it back`, `undo last kafka bit`) skip the pipeline and restore a snapshot / journal hunk. `finishRecording` must release `busyRef` before `submitTranscript` (no double-lock). While `stage === "asking"`, Talk still submits (answers the pending ask, or undo restores history).
 6. Everything else goes through `runPipeline` (busy mutex + AbortController). Host WONTFIX / color / split / duplicate-board / questions call `applyTurn` only — **no** enhance/judge/requestCommand.
 7. Remaining commands: production `runEnhancer` (OmniRoute JSON + host `bindReferents`). Enhancer payload includes pin-free `projectForAgentSafe(scene)`. Valid `enhance.command` applies immediately (skips judge/`requestCommand`). Else `runJudge` routes `command` → `resolveCommand`, `build` → `runBuild`+`verifyEdit`, or `plan` → `runPlan`+`reviewPlan` then the same tool loop. No keyword table. Empty OmniRoute key → enhancer refuse, no fetch.
 8. Missing OmniRoute key → toast. No regex fallback.
 9. Before apply, if `getLiveHash()` ≠ start `sceneHash` → no write (`Board changed — try again.`). Role 500/abort → no write, unknown.
-10. `applyTurn` maps Command JSON onto the scene through `desugarCommand` + `applyEditPlan` (or a JSON Patch). Questions return an answer and do not write. Pipeline `ask` always carries `pending` (including deictic/host asks) and opens **ClarifyPanel**. Toast is not the ask surface. App applies `sceneAfterPipeline(live, out)` so a no-write result cannot roll back human edits.
+10. `applyTurn` maps Command JSON onto the scene through `desugarCommand` + `applyEditPlan` (or a JSON Patch). Questions return an answer and do not write. Pipeline `ask` always carries `pending` (including deictic/host asks) and opens **ClarifyPanel**. Empty-candidate deictic asks complete via **Use selection** (board ids → `runText(originalTranscript)`). Toast is not the ask surface. App applies `sceneAfterPipeline(live, out)` so a no-write result cannot roll back human edits.
 11. Preview shows Command JSON, or Pipeline JSON when `trace.stage !== "idle"`, optional answer, and the **UI** scene copy (`projectForAgent`: no `ink.points`, plus `view`; pins may remain). LLM payloads use `projectForAgentSafe` (pins stripped too).
 12. While stage is running (not idle/asking): Run, Talk, and Undo are disabled; ⌘Z is ignored. Esc cancels. Human draw during ask is allowed.
 
@@ -60,15 +60,16 @@ Board selection[] → next OmniRoute user payload
 
 ```
 Mic → MediaRecorder blob → POST /api/transcribe (Bearer Groq key) → transcript
+  → submitTranscript (same as type-in: host undo / runPipeline with pending)
 ```
 
-No Web Speech. Missing Groq key → toast; do not record.
+No Web Speech. Missing Groq key → toast; do not record. Spoken undo must not call `executePipeline` alone — that host-skips to unknown and never restores.
 
 ## Intent
 
 ```
-type-in / Talk transcript
-  → host undo? (App history)
+type-in / Talk transcript  (Talk after STT → same submitTranscript as type-in)
+  → host undo? (App history; spoken undo included)
   → runPipeline(scene snapshot, getLiveHash, pending, signal)
        host question / whole-board / color / split / duplicate
          → applyTurn only (0 LLM calls)
@@ -139,6 +140,8 @@ runPlan = requestChatRole(role: "plan")
 | Verify sent a screenshot | Verify is predicates + tool trace only — never an image |
 | Question changed the diagram | `applyTurn` must SHA-stabilize questions |
 | Ask only flashed a toast | Pipeline `ask` must set `pendingAsk` + ClarifyPanel |
+| Spoken “undo” did nothing | Talk must `submitTranscript` / `runText`, not `executePipeline`; `runPipeline` host-skips undo to unknown |
+| Deictic ask stuck with empty chips | ClarifyPanel **Use selection** (App chrome; orchestrator does not consume it) |
 | Align left skipped OmniRoute without an LLM | Host regex for align/perfect; valid `enhance.command` **is allowed** to skip `requestCommand` |
 | Enhancer invented node ids | Host `bindReferents` must run after the LLM; payload must be `projectForAgentSafe` |
 | Judge defaulted to plan on 500 | `runJudge` fallback is `command`, never plan |

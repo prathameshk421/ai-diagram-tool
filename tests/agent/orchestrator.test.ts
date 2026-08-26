@@ -229,6 +229,30 @@ describe("runPipeline ask / pending", () => {
     expect(result.pending?.originalTranscript).toBe("perfect this");
     expect(result.pending?.sceneHashAtAsk).toBe(before);
     expect(sceneHash(result.scene)).toBe(before);
+    // Empty candidates: completing the ask is App chrome (ClarifyPanel
+    // "Use selection" → runText(originalTranscript) with board ids).
+    // Orchestrator does not consume a use-selection event.
+    expect(result.pending?.candidates).toEqual([]);
+  });
+
+  it("does not write on undo; App runText restores history, not the orchestrator", async () => {
+    const scene = apiDbScene();
+    const before = sceneHash(scene);
+    const enhance = vi.fn(async () => readyBare);
+    const result = await runPipeline(
+      {
+        transcript: "undo",
+        scene,
+        settings: keyed,
+        pending: null,
+      },
+      deps({ enhance }),
+    );
+    expect(result.wrote).toBe(false);
+    expect(result.llmCalls).toBe(0);
+    expect(result.pending).toBeNull();
+    expect(sceneHash(result.scene)).toBe(before);
+    expect(enhance).not.toHaveBeenCalled();
   });
 });
 

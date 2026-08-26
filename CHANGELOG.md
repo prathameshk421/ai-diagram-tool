@@ -2,6 +2,12 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Spoken undo + ClarifyPanel Use selection
+
+- Talk after STT now shares type-in’s `submitTranscript` (`runText`): `hostUndoKind` restores SceneHistory instead of hitting `runPipeline` (which returns unknown and does not write). `finishRecording` releases `busyRef` after transcribe so the pipeline lock is not double-held. While asking, Talk still submits (pending via `executePipeline`); undo while asking still restores.
+- ClarifyPanel always shows **Use selection**, enabled when `canUseSelection(selection)` (`selection.length >= 1`). Click → `onAnswerSelection(selection)` so a deictic ask with empty `candidates` can complete from the board. Named chips stay when candidates exist.
+- Tests: Talk-path phrases use the same `hostUndoKind` as type-in; orchestrator undo is a no-write host skip (App restores); deictic pending may have empty candidates (Use selection is App chrome, not orchestrator). No RTL in this repo — skipped a ClarifyPanel click test; `canUseSelection` is the unit stand-in.
+
 ## 2026-08-26 — FLOW user-loop + README match the pipeline
 
 - FLOW numbered step 7 now includes the `enhance.command` skip and build/plan routes, not only `resolveCommand`.
