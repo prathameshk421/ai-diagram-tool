@@ -4,6 +4,7 @@ Voice-driven architecture-diagram **agent path**: Groq Whisper transcribes; Omni
 
 - Feature contract: [docs/features.md](docs/features.md)
 - Implementation plan: [docs/implementation-plan.md](docs/implementation-plan.md)
+- Later canvas (research only): [docs/canvas-agent-research.md](docs/canvas-agent-research.md)
 
 **This slice ships:** harness UI + Groq STT + OmniRoute intent. A later canvas will consume the same Command as agent tools against an agent-optimized scene.
 
