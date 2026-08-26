@@ -198,7 +198,7 @@ function tidy(scene: Scene, scope: "board" | string): void {
 
 function insertOnPath(scene: Scene, pass: InsertPass): void {
   const edge = scene.edges[pass.on];
-  if (!edge) return;
+  if (!edge) throw new Error("unknown edge");
   if (pass.node in scene.nodes === false) {
     scene.nodes[pass.node] = defaultNode({
       kind: "unknown",
@@ -225,7 +225,7 @@ function insertOnPath(scene: Scene, pass: InsertPass): void {
 
 function mergeNodes(scene: Scene, pass: MergePass): void {
   const keep = scene.nodes[pass.keep];
-  if (!keep) return;
+  if (!keep) throw new Error("keep missing");
   const others = pass.ids.filter((id) => id !== pass.keep && scene.nodes[id]);
   const boxes = pass.ids.filter((id) => scene.nodes[id]).map((id) => nodeBox(scene.nodes[id]));
   if (boxes.length) {
@@ -251,7 +251,7 @@ function mergeNodes(scene: Scene, pass: MergePass): void {
 
 function annotatePath(scene: Scene, from: string, to: string): void {
   const path = shortestPath(scene, from, to);
-  if (!path) return;
+  if (!path) throw new Error("no path");
   path.forEach((eid, i) => {
     const edge = scene.edges[eid];
     if (edge) edge.label = String(i + 1);

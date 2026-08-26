@@ -157,4 +157,14 @@ describe("host undo", () => {
     expect(hostUndoKind("undo last kafka bit")).toEqual({ hunk: "kafka" });
     expect(hostUndoKind("align left")).toBeNull();
   });
+
+  it("classifies Talk-path STT transcripts with the same hostUndoKind as type-in", () => {
+    // Spoken "undo" / "put it back" must be host restore (App runText), not runPipeline unknown.
+    expect(hostUndoKind("undo")).toBe("full");
+    expect(hostUndoKind("Undo.")).toBe("full");
+    expect(hostUndoKind(" put it back ")).toBe("full");
+    expect(hostUndoKind("put that back")).toBe("full");
+    expect(hostUndoKind("undo last kafka bit")).toEqual({ hunk: "kafka" });
+    expect(hostUndoKind("undo last kafka")).toEqual({ hunk: "kafka" });
+  });
 });

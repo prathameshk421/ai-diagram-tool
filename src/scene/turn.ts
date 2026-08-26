@@ -1,9 +1,10 @@
 import { cloneJson } from "./clone";
-import { applyCommand, isDeictic, needsSelection } from "./commandAdapter";
+import { isDeictic, needsSelection } from "./commandAdapter";
 import { sceneHash } from "./hash";
 import { isDuplicateBoardAsk, isColorQuery, isSplitAsk, isWholeBoardGen, COLOR_SAY, SPLIT_SAY, WHOLE_BOARD_SAY } from "./host";
 import { compile } from "./kernel";
 import { applyJsonPatch, AgentWriteError } from "./patch";
+import { applyEditPlan, desugarCommand } from "../agent/edit";
 import type { Command } from "../intent/types";
 import type { JsonPatchOp, Scene, TurnResult } from "./types";
 
@@ -149,7 +150,30 @@ export function applyTurn(
           answer: null,
         };
       }
-      next = applyCommand(scene, turn.command);
+      const edited = applyEditPlan(
+        scene,
+        desugarCommand(turn.command, scene),
+        { transcript },
+      );
+      if (edited.ask) {
+        return {
+          scene: edited.scene,
+          say: edited.say,
+          wrote: false,
+          ask: true,
+          answer: null,
+        };
+      }
+      if (!edited.ok) {
+        return {
+          scene,
+          say: edited.say,
+          wrote: false,
+          ask: false,
+          answer: null,
+        };
+      }
+      next = edited.scene;
       say = turn.command.say;
     }
     if (next.meta.strict) {

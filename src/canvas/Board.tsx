@@ -24,6 +24,7 @@ type Props = {
   tool: BoardTool;
   onChange: (scene: Scene) => void;
   onCheckpoint: () => void;
+  pickHint?: { candidates: string[] } | null;
 };
 
 type Drag =
@@ -33,7 +34,13 @@ type Drag =
   | { kind: "pen"; points: [number, number][] }
   | { kind: "marquee"; x: number; y: number };
 
-export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
+export function Board({
+  scene,
+  tool,
+  onChange,
+  onCheckpoint,
+  pickHint = null,
+}: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [cam, setCam] = useState<Cam>({ x: 24, y: 24, k: 1 });
   const [space, setSpace] = useState(false);
@@ -365,6 +372,7 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
             id={id}
             node={node}
             selected={scene.selection.includes(id)}
+            hinted={Boolean(pickHint?.candidates.includes(id))}
             editing={editingId === id}
             onCommit={(label) => {
               onCheckpoint();
@@ -405,6 +413,7 @@ function NodeGlyph({
   id,
   node,
   selected,
+  hinted,
   editing,
   onCommit,
   onCancel,
@@ -412,17 +421,24 @@ function NodeGlyph({
   id: string;
   node: SceneNode;
   selected: boolean;
+  hinted: boolean;
   editing: boolean;
   onCommit: (label: string) => void;
   onCancel: () => void;
 }) {
   const box = nodeBox(node);
-  const stroke = selected ? "#2f6fed" : node.style === "clean" ? "#8aa0b8" : "#c5d0dc";
+  const stroke = selected
+    ? "#2f6fed"
+    : hinted
+      ? "#f4d58d"
+      : node.style === "clean"
+        ? "#8aa0b8"
+        : "#c5d0dc";
   const fill = node.style === "clean" ? "#1a2430" : "#1e2833";
-  const sw = selected ? 2.4 : node.style === "clean" ? 1.4 : 1.8;
+  const sw = selected ? 2.4 : hinted ? 2.2 : node.style === "clean" ? 1.4 : 1.8;
   const label = node.label || id;
   return (
-    <g data-node={id}>
+    <g data-node={id} className={hinted ? "candidate-halo" : undefined}>
       <NodeShape box={box} node={node} fill={fill} stroke={stroke} sw={sw} />
       {editing ? (
         <foreignObject
@@ -447,7 +463,10 @@ function NodeGlyph({
                   event.preventDefault();
                   onCommit(event.currentTarget.value);
                 }
-                if (event.key === "Escape") onCancel();
+                if (event.key === "Escape") {
+                  event.stopPropagation();
+                  onCancel();
+                }
               }}
             />
           </div>

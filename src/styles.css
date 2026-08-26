@@ -242,6 +242,46 @@ button.talk.live {
   color: #f4d58d;
 }
 
+.clarify-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  background: #1a222c;
+  border: 1px solid #f4d58d;
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+}
+
+.clarify-panel p {
+  margin: 0;
+  flex: 1 1 12rem;
+  color: #e7ecf3;
+  font-size: 0.95rem;
+}
+
+.clarify-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+button.chip {
+  background: #1a222c;
+  border-color: #f4d58d;
+  color: #f4d58d;
+}
+
+button.chip.on {
+  background: #2f6fed;
+  border-color: #2f6fed;
+  color: #e7ecf3;
+}
+
+.candidate-halo {
+  /* amber stroke is set on the SVG; class is for targeting */
+}
+
 .drawer-actions {
   display: flex;
   gap: 0.5rem;
@@ -252,5 +292,11 @@ button.talk.live {
   .workspace {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(14rem, 1fr) minmax(8rem, 38%);
+  }
+
+  .clarify-panel {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
   }
 }

@@ -1,0 +1,10 @@
+{
+  "calls": [
+    {
+      "tool": "add_node",
+      "args": { "id": "redis", "spec": { "label": "Redis", "kind": "cache" } }
+    },
+    { "tool": "insert_on_path", "args": { "node": "redis", "on": "api_to_db" } }
+  ],
+  "say": "Inserted Redis."
+}

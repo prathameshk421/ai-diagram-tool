@@ -1,7 +1,7 @@
 export { SCHEMA_ID, type Scene, type JsonPatchOp, type TurnResult } from "./types";
 export { emptyScene, defaultNode, demoScene } from "./empty";
 export { validateScene, assertValid } from "./validate";
-export { projectForAgent, buildView } from "./project";
+export { projectForAgent, projectForAgentSafe, buildView } from "./project";
 export { compile } from "./kernel";
 export { applyJsonPatch, AgentWriteError } from "./patch";
 export {

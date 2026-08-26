@@ -2,6 +2,78 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Spoken undo + ClarifyPanel Use selection
+
+- Talk after STT now shares type-in’s `submitTranscript` (`runText`): `hostUndoKind` restores SceneHistory instead of hitting `runPipeline` (which returns unknown and does not write). `finishRecording` releases `busyRef` after transcribe so the pipeline lock is not double-held. While asking, Talk still submits (pending via `executePipeline`); undo while asking still restores.
+- ClarifyPanel always shows **Use selection**, enabled when `canUseSelection(selection)` (`selection.length >= 1`). Click → `onAnswerSelection(selection)` so a deictic ask with empty `candidates` can complete from the board. Named chips stay when candidates exist.
+- Tests: Talk-path phrases use the same `hostUndoKind` as type-in; orchestrator undo is a no-write host skip (App restores); deictic pending may have empty candidates (Use selection is App chrome, not orchestrator). No RTL in this repo — skipped a ClarifyPanel click test; `canUseSelection` is the unit stand-in.
+
+## 2026-08-26 — FLOW user-loop + README match the pipeline
+
+- FLOW numbered step 7 now includes the `enhance.command` skip and build/plan routes, not only `resolveCommand`.
+- README intro matches Command JSON fast path plus typed tools and predicate verify.
+
+## 2026-08-26 — Agent pipeline feature contract and flow
+
+- `docs/features.md`: agent path is enhancer → judge → Command JSON or build/plan tools → `applyEditPlan`. F3 is a pipeline (`projectForAgentSafe` for structural roles; verify is predicates). F4 structural ops are live via build/plan. F5 distinguishes `projectForAgent` vs `projectForAgentSafe`. Vague prompts may ask; Redis insert splices with empty selection if the model names the DB. Demos add ClarifyPanel deictic ask. Decision log rows 24–27. WONTFIX §6 unchanged (no vision, no whole-board gen, no keyword table).
+- `AGENTS.md`: `applyEditPlan` is the write API; never send screenshots; verify is predicates; never keyword-route ops. Layout lists `src/agent/verify/` and roles (enhancer, judge, build, plan, reviewPlan).
+- `FLOW.md`: patch denylist includes `schema` / `view`. Bug table: valid `enhance.command` may skip `requestCommand`; hunt a **host regex** for align/perfect, not an LLM Command on the enhancer.
+- `DECISIONS.md`: Approach C; snapshot = scene JSON clone + hash, not a camera image.
+- Fixtures: `tests/agent/fixtures/{enhancer-ready-align,enhancer-ask-kafka,build-insert-redis,plan-insert-redis}.json` loaded by `tests/agent/fixtures.test.ts`.
+
+## 2026-08-26 — Plan agent and deterministic plan review
+
+- `runPlan` / `parsePlan` call `requestChatRole` role `plan` with `PLAN_PROMPT` and `projectForAgentSafe(scene)`. Plan JSON is `{goal, steps, expected?, say}`: 1–12 `EditToolCall`s, no geometry keys. Missing OmniRoute key, HTTP 500, and invalid JSON fail closed (`null`).
+- `reviewPlan` is **code-first**: `COORDINATE_LEAK`, `PLAN_TOO_LONG`, `BEAUTIFY_UNFROZEN`, `STRICT_UNNAMED`, `SIDECAR_INSERT` (add_edge A→B plus insert_on_path on that edge), empty steps. Optional `deps.reviewLlm` runs only after a deterministic approve; App does **not** wire it.
+- Orchestrator plan route: one replan (`TURN_CAPS.maxReplans === 1`) with `rejectReasons` fed back, then approved `plan.steps` reuse the shared `runToolLoop` (applyEditPlan + verifyEdit, `expected` from the plan). Exhaustion / missing `deps.plan` → original scene, `wrote: false`.
+- App `pipelineDeps` injects `runPlan`. Command fast path unchanged.
+
+## 2026-08-26 — Build agent and deterministic scene verify
+
+- `runBuild` / `parseBuild` call `requestChatRole` role `build` with `BUILD_PROMPT` and `projectForAgentSafe(scene)`. Invalid JSON, unknown tools, geometry keys (`pin`/`x`/`y`/…), >8 calls, and HTTP 500 fail closed (empty calls, no write, no retry). Missing OmniRoute key asks without fetch.
+- `verifyEdit` is scene predicates + tool trace (no vision, no LLM). Insert must splice (fail `INSERT_SIDECAR`); beautify must freeze ids/kinds/pins; tool args must not leak coordinates.
+- Orchestrator build route: up to `TURN_CAPS.maxVerifyAttempts` (2) of build → `applyEditPlan` → verify. Failures pass `errors` back into the next build payload. Exhaustion rolls back to the original scene (`wrote: false`). Ask remediation and apply-plan ask skip the rebuild loop.
+- App `pipelineDeps` injects `runBuild` and `verifyEdit`. Plan/review agents still absent.
+
+## 2026-08-26 — Enhancer and judge roles with host resolveReferent
+
+- `runEnhancer` / `runJudge` call `requestChatRole` and parse JSON. Invalid JSON and HTTP 500 fail closed (enhancer refuse unknown; judge `route: "command"` — never plan).
+- Host `bindReferents` runs **after** the enhancer LLM: exact node/edge ids pass through, else `resolveReferent`. Ambiguous Kafka → ask with candidate ids; missing object → ask. Empty OmniRoute key refuses without fetch.
+- Enhancer payload is `projectForAgentSafe(scene)` (no pins). Judge payload is scene stats only (node/edge counts), not the full scene.
+- Judge overlay: valid `intent.command` forces `command`; `hints.structural` without `multiStep` forces `build` when the LLM said `plan`. Overlay does not regex align/perfect.
+- App `pipelineDeps` injects `runEnhancer` / `runJudge` instead of passthrough stubs. Valid `enhance.command` still skips `requestCommand`.
+
+## 2026-08-26 — Ask pending + keep live scene when pipeline does not write
+
+- `applyTurn.ask` (deictic empty selection, host color/split) now returns a synthesized `PendingAsk`, so App opens ClarifyPanel instead of toast-only.
+- `sceneAfterPipeline(live, out)` commits `out.scene` only when `out.wrote`; otherwise the live board (human edits during the run) is kept. App uses this helper.
+
+## 2026-08-26 — Pipeline orchestrator, session types, ClarifyPanel
+
+- `runPipeline` in `src/agent/pipeline/orchestrator.ts` is the host turn: host channels skip role LLMs; otherwise injectable `enhance` / `judge` / `requestCommand` / optional `build`. Questions, asks, abort, 500, and hash mismatch never write. Valid `enhance.command` skips `requestCommand`.
+- App keeps a pipeline session (stage, pending ask, AbortController, busy mutex). Production deps are passthrough enhance + judge `command` + `resolveCommand`/`requestIntent`. Esc cancels. Undo/Talk/Run are disabled while running.
+- `ClarifyPanel` is the ask UI. CommandInput `answer` mode, StatusBar stage copy, CommandPreview pipeline JSON, Board amber `#f4d58d` candidate halos.
+
+## 2026-08-26 — Agent-safe projection + per-role OmniRoute chat
+
+- `projectForAgentSafe` clones the scene, deletes every `node.pin` and `ink.points`, and attaches `view` computed from the stored scene (so `rel` stays correct). `projectForAgent` is unchanged for ScenePreview (pins may remain).
+- `requestChatRole` posts to the same `/api/intent` with per-role `ROLE_BUDGETS` (`src/agent/pipeline/budgets.ts`). Thinking is `{ type: "disabled" }`; HTTP 400 omits thinking once; 500/429 are not retried.
+- `requestIntent` is the command role on top of `requestChatRole`: still 4s / 200 tokens and payload `{ transcript, selectionCount, selection }` (no scene).
+
+## 2026-08-26 — applyEditPlan review: add wipe, connect ortho, id clash
+
+- JSON Patch `add` of whole `/nodes` or `/edges` is rejected (same as replace/remove).
+- Desugared `connect` passes `route: "ortho"` so Command behavior matches the old adapter.
+- `add_node` errors when the proposed id is already in nodes/edges/groups/ink (no clobber, pin preserved).
+
+## 2026-08-26 — Closed applyEditPlan scene edit API
+
+- Agent writes go through typed tools (`src/agent/edit/`) batched by `applyEditPlan`. Failed calls and `compile()` throws roll back to the original scene (SHA unchanged).
+- `desugarCommand` maps the original Command ops onto those tools. `applyCommand` / command `applyTurn` share that write path.
+- JSON Patch rejects host fields (`selection`, `lastDrawn`, `schema`, `view`), whole `/nodes` or `/edges` replace/remove, and RFC6902 `-`.
+- Kernel passes `insertOnPath` / `annotatePath` / `mergeNodes` throw on missing edge, no path, or missing keep (no silent no-op).
+- `semanticDiff` reports topology, labels, and kinds only — never coordinates.
+
 ## 2026-08-26 — Box labels and pen strokes actually work in the browser
 
 - Drawing a box now opens the label field (type, Enter). Double-click still edits; that path uses `dblclick`, not `pointerdown.detail` (often 0).

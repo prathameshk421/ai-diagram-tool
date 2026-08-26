@@ -1,0 +1,19 @@
+{
+  "goal": "insert redis in front of the db",
+  "steps": [
+    {
+      "tool": "add_node",
+      "args": { "id": "redis", "spec": { "label": "Redis", "kind": "cache" } }
+    },
+    { "tool": "insert_on_path", "args": { "node": "redis", "on": "api_to_db" } }
+  ],
+  "expected": {
+    "nodesAdded": ["redis"],
+    "hasEdge": [
+      { "from": "api", "to": "redis" },
+      { "from": "redis", "to": "db" }
+    ],
+    "noEdge": [{ "from": "api", "to": "db" }]
+  },
+  "say": "Inserted Redis."
+}
