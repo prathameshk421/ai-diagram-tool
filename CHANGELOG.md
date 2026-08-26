@@ -2,6 +2,14 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — arch-scene/v1 kernel + SVG architecture board
+
+- Locked `arch-scene/v1` in `src/scene/`: schema, validator, RFC6902 patch (rejects coordinates / ink points), passes (beautify with implied freezes, convert-ink same-id, insert-on-path, merge, tidy-layout, unoverlap, restyle-icons, annotate-path), constraints, referent resolver, delete+retarget, SHA-stable question turns, host undo journal.
+- SVG board in `src/canvas/`: select / box / pen / connect; human drag writes `pin`; camera pan/zoom is not stored. Replaced the selection-count stub with real `selection[]` ids on the OmniRoute payload.
+- Command JSON still comes from OmniRoute; `applyTurn` maps it onto the scene. Persist JSON in `localStorage` (`ai-diagram-tool:scene`). Agent projection omits `ink.points` and adds `view`.
+- Tests: `tests/scene/*` (illegal writes, selected beautify, empty-selection ask, insert not sidecar, delete retarget, question SHA, AWS restyle freezePins, two-Kafka ask) plus existing intent tests.
+- Product docs: canvas is this slice. No Excalidraw, no vision, no whole-board generation.
+
 ## 2026-08-26 — Audit utterances 48–76 against arch YAML
 
 - Added `docs/canvas-audit-48-76.md`: WORKS / WORKS_IF / FAILS for targeting, labels, questions, undo, messy voice.

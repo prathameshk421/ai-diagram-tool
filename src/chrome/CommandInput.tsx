@@ -17,7 +17,7 @@ export function CommandInput({ value, onChange, onSubmit }: Props) {
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="Type a command (e.g. align left)"
+        placeholder="Type a command (e.g. align left, make it nicer)"
         aria-label="Command"
       />
       <button type="submit">Run</button>

@@ -1,13 +1,13 @@
 # ai-diagram-tool
 
-Voice-driven architecture-diagram **agent path**: Groq Whisper transcribes; OmniRoute OpenCode Go DeepSeek always interprets the text and emits closed Command JSON. No keyword table. No drawing surface in this slice.
+Voice-driven **architecture board**: Groq Whisper transcribes; OmniRoute OpenCode Go DeepSeek always interprets the text and emits closed Command JSON. A kernel applies that onto one `arch-scene/v1` scene. Humans draw on an SVG board. No keyword table. No Excalidraw. The model never invents coordinates.
 
 - Feature contract: [docs/features.md](docs/features.md)
-- Implementation plan: [docs/implementation-plan.md](docs/implementation-plan.md)
+- Implementation plan (STT/intent): [docs/implementation-plan.md](docs/implementation-plan.md)
 
-**This slice ships:** harness UI + Groq STT + OmniRoute intent. A later canvas will consume the same Command as agent tools against an agent-optimized scene.
+**This slice ships:** harness UI + Groq STT + OmniRoute intent + scene kernel + SVG board.
 
-Keys are pasted in Settings. No env-key fallback. No Web Speech. Thinking is off. Every command hits the LLM.
+Keys are pasted in Settings. No env-key fallback. No Web Speech. Thinking is off. Every diagram command hits the LLM. Undo is a host snapshot.
 
 ## Run
 
@@ -20,7 +20,7 @@ npm run dev
 
 `npm run test:live` probes Groq `/openai/v1/models` and OmniRoute `/api/rate-limits` first, then makes **one** Whisper request and **one** chat completion. It does not retry HTTP 429.
 
-Open `http://localhost:5173`. Paste Groq + OmniRoute keys in Settings. Type `align left` to see Command JSON from DeepSeek.
+Open `http://localhost:5173`. Paste Groq + OmniRoute keys in Settings. Draw a box or use the demo API→Postgres board. Type `align left` (with a selection) to see Command JSON from DeepSeek applied as pins.
 
 ## Settings
 
@@ -42,6 +42,6 @@ curl -sS http://localhost:5173/api/transcribe
 # {"error":"missing_groq_key"}
 ```
 
-## Later layout (from `main`, not this slice)
+## Later layout (from `main`, not this app)
 
-`frontend/`, `backend/`, and `firebase/` are a later canvas / hosting sketch. They are **not** the running app. Do not `cd frontend` or use Web Speech for this slice. The current app is the repo-root Vite harness above.
+`frontend/`, `backend/`, and `firebase/` are a later hosting sketch. They are **not** the running app. Do not `cd frontend` or use Web Speech. The current app is the repo-root Vite board above.

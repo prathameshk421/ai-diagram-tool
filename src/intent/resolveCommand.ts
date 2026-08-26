@@ -6,6 +6,7 @@ export type IntentRequester = (
   settings: Settings,
   transcript: string,
   selectionCount: number,
+  selection?: string[],
 ) => Promise<Command>;
 
 function hasOmniroute(settings: Settings): boolean {
@@ -20,10 +21,11 @@ export async function resolveCommand(
   selectionCount: number,
   settings: Settings,
   request: IntentRequester = requestIntent,
+  selection: string[] = [],
 ): Promise<Command> {
   if (!text.trim()) return unknownCommand();
   if (!hasOmniroute(settings)) {
     return unknownCommand(MISSING_OMNIROUTE_SAY);
   }
-  return request(settings, text, selectionCount);
+  return request(settings, text, selectionCount, selection);
 }

@@ -35,7 +35,7 @@ describe("resolveCommand", () => {
     const request = vi.fn().mockResolvedValue(llmCommand());
     const command = await resolveCommand("align left", 2, keyed, request);
     expect(request).toHaveBeenCalledTimes(1);
-    expect(request).toHaveBeenCalledWith(keyed, "align left", 2);
+    expect(request).toHaveBeenCalledWith(keyed, "align left", 2, []);
     expect(command.op).toBe("align");
   });
 
@@ -56,7 +56,12 @@ describe("resolveCommand", () => {
       request,
     );
     expect(request).toHaveBeenCalledTimes(1);
-    expect(request).toHaveBeenCalledWith(keyed, "line these up on the left", 2);
+    expect(request).toHaveBeenCalledWith(
+      keyed,
+      "line these up on the left",
+      2,
+      [],
+    );
     expect(command.op).toBe("align");
   });
 
@@ -128,7 +133,11 @@ describe("requestIntent payload", () => {
     expect(messages[0].content).toBe(SYSTEM_PROMPT);
     expect(SYSTEM_PROMPT.toLowerCase()).toContain("json");
     expect(messages[1].content).toBe(
-      JSON.stringify({ transcript: "clean this up", selectionCount: 1 }),
+      JSON.stringify({
+        transcript: "clean this up",
+        selectionCount: 1,
+        selection: [],
+      }),
     );
   });
 

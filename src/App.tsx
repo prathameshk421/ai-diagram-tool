@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import { Board, type BoardTool } from "./canvas/Board";
+import { BoardToolbar } from "./canvas/Toolbar";
 import { CommandInput } from "./chrome/CommandInput";
 import { CommandPreview } from "./chrome/CommandPreview";
+import { ScenePreview } from "./chrome/ScenePreview";
 import { SettingsDrawer } from "./chrome/SettingsDrawer";
 import { StatusBar } from "./chrome/StatusBar";
 import { resolveCommand } from "./intent/resolveCommand";
+import { requestIntent } from "./intent/omnirouteClient";
 import { type Command, unknownCommand } from "./intent/types";
 import {
   DEFAULT_SETTINGS,
@@ -11,6 +15,13 @@ import {
   saveSettings,
   type Settings,
 } from "./settings/store";
+import { applyTurn } from "./scene/turn";
+import { demoScene } from "./scene/empty";
+import { SceneHistory } from "./scene/history";
+import { hostUndoKind } from "./scene/host";
+import { loadScene, saveScene } from "./scene/persist";
+import { projectForAgent } from "./scene/project";
+import type { Scene } from "./scene/types";
 import { VoiceRecorder } from "./voice/recorder";
 import {
   shouldSkipIntentFromStt,
@@ -41,20 +52,31 @@ export default function App() {
   const [draft, setDraft] = useState<Settings>(DEFAULT_SETTINGS);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [input, setInput] = useState("");
-  const [selectionCount, setSelectionCount] = useState(1);
   const [voice, setVoice] = useState<VoiceState>("idle");
   const [transcript, setTranscript] = useState("");
   const [command, setCommand] = useState<Command | null>(null);
   const [toast, setToast] = useState("");
+  const [scene, setScene] = useState<Scene>(() => demoScene());
+  const [tool, setTool] = useState<BoardTool>("select");
+  const [answer, setAnswer] = useState<string | null>(null);
   const recorderRef = useRef<VoiceRecorder | null>(null);
   const maxTimerRef = useRef<number | null>(null);
   const busyRef = useRef(false);
+  const historyRef = useRef(new SceneHistory());
+  const sceneRef = useRef(scene);
+  sceneRef.current = scene;
 
   useEffect(() => {
     const loaded = loadSettings();
     setSettings(loaded);
     setDraft(loaded);
+    const stored = loadScene();
+    if (stored) setScene(stored);
   }, []);
+
+  useEffect(() => {
+    saveScene(scene);
+  }, [scene]);
 
   useEffect(() => {
     return () => {
@@ -62,18 +84,61 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        const next = historyRef.current.undo(sceneRef.current);
+        setScene(next);
+        setToast("Undid last change.");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   function showToast(message: string) {
     setToast(message);
+  }
+
+  function undo() {
+    const next = historyRef.current.undo(sceneRef.current);
+    setScene(next);
+    showToast("Undid last change.");
   }
 
   async function runText(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
+    const undoKind = hostUndoKind(trimmed);
+    if (undoKind === "full") {
+      undo();
+      return;
+    }
+    if (undoKind && "hunk" in undoKind) {
+      const next = historyRef.current.undoHunk(undoKind.hunk, sceneRef.current);
+      setScene(next);
+      showToast(`Reverted ${undoKind.hunk}.`);
+      return;
+    }
     setVoice("understanding");
-    const parsed = await resolveCommand(trimmed, selectionCount, settings);
+    const current = sceneRef.current;
+    const parsed = await resolveCommand(
+      trimmed,
+      current.selection.length,
+      settings,
+      requestIntent,
+      current.selection,
+    );
+    const result = applyTurn(current, { type: "command", command: parsed }, trimmed);
+    if (result.wrote) {
+      historyRef.current.record(trimmed, current, result.scene);
+    }
+    setScene(result.scene);
     setCommand(parsed);
+    setAnswer(result.answer);
     setVoice("idle");
-    showToast(parsed.say);
+    showToast(result.say);
   }
 
   async function finishRecording() {
@@ -114,14 +179,27 @@ export default function App() {
     }
     setTranscript(result.text);
     setVoice("understanding");
+    const current = sceneRef.current;
     const commandResult = await resolveCommand(
       result.text,
-      selectionCount,
+      current.selection.length,
       settings,
+      requestIntent,
+      current.selection,
     );
+    const applied = applyTurn(
+      current,
+      { type: "command", command: commandResult },
+      result.text,
+    );
+    if (applied.wrote) {
+      historyRef.current.record(result.text, current, applied.scene);
+    }
+    setScene(applied.scene);
     setCommand(commandResult);
+    setAnswer(applied.answer);
     setVoice("idle");
-    showToast(commandResult.say);
+    showToast(applied.say);
     busyRef.current = false;
   }
 
@@ -157,7 +235,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="chrome">
-        <h1>AI diagram agent path</h1>
+        <h1>Architecture board</h1>
         <div className="row">
           <CommandInput
             value={input}
@@ -174,6 +252,9 @@ export default function App() {
           >
             {voice === "listening" ? "Stop talking" : "Talk"}
           </button>
+          <button type="button" className="secondary" onClick={undo}>
+            Undo
+          </button>
           <button
             type="button"
             className="secondary"
@@ -185,20 +266,27 @@ export default function App() {
             Settings
           </button>
         </div>
-        <label className="count">
-          Selection count (stub)
-          <input
-            type="number"
-            min={0}
-            value={selectionCount}
-            onChange={(event) =>
-              setSelectionCount(Number(event.target.value) || 0)
-            }
-          />
-        </label>
+        <BoardToolbar tool={tool} onTool={setTool} />
         <StatusBar voice={voice} transcript={transcript} toast={toast} />
       </header>
-      <CommandPreview command={command} />
+      <div className="workspace">
+        <Board
+          scene={scene}
+          tool={tool}
+          onChange={setScene}
+          onCheckpoint={() => historyRef.current.snapshot(sceneRef.current)}
+        />
+        <aside className="side">
+          <CommandPreview command={command} />
+          {answer ? (
+            <section className="preview answer" aria-label="Answer">
+              <h2>Answer</h2>
+              <p>{answer}</p>
+            </section>
+          ) : null}
+          <ScenePreview value={projectForAgent(scene)} />
+        </aside>
+      </div>
       {drawerOpen ? (
         <SettingsDrawer
           draft={draft}
