@@ -64,3 +64,22 @@ export function rectFromCorners(
     h: Math.abs(y1 - y0),
   };
 }
+
+/** Ignore jitter so a double-click can rename instead of nudging the pin. */
+export const MOVE_THRESHOLD_PX = 4;
+
+export function pastMoveThreshold(dx: number, dy: number): boolean {
+  return dx * dx + dy * dy >= MOVE_THRESHOLD_PX * MOVE_THRESHOLD_PX;
+}
+
+/** Pointerup often has no preceding move events in automated browsers. */
+export function appendPenPoint(
+  points: [number, number][],
+  end: [number, number],
+): [number, number][] {
+  const last = points[points.length - 1];
+  if (!last || last[0] !== end[0] || last[1] !== end[1]) {
+    return [...points, end];
+  }
+  return points;
+}

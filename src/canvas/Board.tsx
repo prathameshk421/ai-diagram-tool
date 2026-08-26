@@ -4,9 +4,11 @@ import { cloneJson } from "../scene/clone";
 import { nextId } from "../scene/ids";
 import type { Scene, SceneNode } from "../scene/types";
 import {
+  appendPenPoint,
   clientToWorld,
   diamondPoints,
   edgePath,
+  pastMoveThreshold,
   rectFromCorners,
   type BoardTool,
 } from "./geometry";
@@ -26,7 +28,7 @@ type Props = {
 
 type Drag =
   | { kind: "pan"; x: number; y: number; cam: Cam }
-  | { kind: "move"; x: number; y: number; start: Scene; ids: string[] }
+  | { kind: "move"; x: number; y: number; start: Scene; ids: string[]; moved: boolean }
   | { kind: "box"; x: number; y: number }
   | { kind: "pen"; points: [number, number][] }
   | { kind: "marquee"; x: number; y: number };
@@ -83,32 +85,37 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
     connectFrom.current = null;
   }, [tool]);
 
+  function capture(event: PointerEvent<SVGSVGElement>) {
+    svgRef.current?.setPointerCapture(event.pointerId);
+  }
+
   function onPointerDown(event: PointerEvent<SVGSVGElement>) {
     if (!svgRef.current) return;
-    svgRef.current.setPointerCapture(event.pointerId);
+    const target = event.target as Element | null;
+    if (target?.closest?.("input, textarea")) return;
     const p = worldFromEvent(event);
     const pan =
       space || event.button === 1 || event.button === 2 || tool === "select" && event.altKey;
     if (pan) {
+      capture(event);
       drag.current = { kind: "pan", x: event.clientX, y: event.clientY, cam };
       return;
     }
     if (tool === "box") {
+      const over = hitTest(scene, p.x, p.y);
+      if (editingId && over === editingId) return;
+      capture(event);
       drag.current = { kind: "box", x: p.x, y: p.y };
       setDraft({ x: p.x, y: p.y, w: 0, h: 0 });
       return;
     }
     if (tool === "pen") {
+      capture(event);
       drag.current = { kind: "pen", points: [[p.x, p.y]] };
       setPenDraft([[p.x, p.y]]);
       return;
     }
     const hit = hitTest(scene, p.x, p.y);
-    if (hit && hit in scene.nodes && event.detail === 2 && tool === "select") {
-      setEditingId(hit);
-      connectFrom.current = null;
-      return;
-    }
     if (tool === "connect") {
       if (!hit || !(hit in scene.nodes)) return;
       if (!connectFrom.current) {
@@ -148,12 +155,14 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
       const next = cloneJson(scene);
       next.selection = ids.filter((id) => id in next.nodes || id in next.ink);
       onChange(next);
+      capture(event);
       drag.current = {
         kind: "move",
         x: p.x,
         y: p.y,
         start: next,
         ids: next.selection.filter((id) => id in next.nodes && !next.nodes[id].locked),
+        moved: false,
       };
       return;
     }
@@ -167,6 +176,7 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
       onChange(next);
       return;
     }
+    capture(event);
     drag.current = { kind: "marquee", x: p.x, y: p.y };
     setDraft({ x: p.x, y: p.y, w: 0, h: 0 });
     if (!event.shiftKey) {
@@ -201,6 +211,8 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
     if (current.kind === "move") {
       const dx = p.x - current.x;
       const dy = p.y - current.y;
+      if (!current.moved && !pastMoveThreshold(dx, dy)) return;
+      current.moved = true;
       const next = cloneJson(current.start);
       for (const id of current.ids) {
         const node = next.nodes[id];
@@ -221,10 +233,15 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
       if (next) {
         onCheckpoint();
         onChange(next);
+        const id = next.lastDrawn;
+        if (id) queueMicrotask(() => setEditingId(id));
       }
     }
     if (current.kind === "pen") {
-      const next = commitPenStroke(scene, current.points);
+      const next = commitPenStroke(
+        scene,
+        appendPenPoint(current.points, [p.x, p.y]),
+      );
       if (next) {
         onCheckpoint();
         onChange(next);
@@ -239,6 +256,16 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
     setPenDraft(null);
   }
 
+  function onDoubleClick(event: { clientX: number; clientY: number }) {
+    if (tool !== "select" && tool !== "box") return;
+    const p = worldFromEvent(event);
+    const hit = hitTest(scene, p.x, p.y);
+    if (hit && hit in scene.nodes) {
+      drag.current = null;
+      setEditingId(hit);
+    }
+  }
+
   return (
     <svg
       ref={svgRef}
@@ -251,6 +278,7 @@ export function Board({ scene, tool, onChange, onCheckpoint }: Props) {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onDoubleClick={onDoubleClick}
       onContextMenu={(event) => event.preventDefault()}
     >
       <defs>
@@ -397,22 +425,32 @@ function NodeGlyph({
     <g data-node={id}>
       <NodeShape box={box} node={node} fill={fill} stroke={stroke} sw={sw} />
       {editing ? (
-        <foreignObject x={box.x + 6} y={box.y + box.h / 2 - 12} width={box.w - 12} height={24}>
-          <input
-            autoFocus
-            defaultValue={node.label}
-            aria-label={`Label ${id}`}
-            className="board-label-input"
-            onPointerDown={(event) => event.stopPropagation()}
-            onBlur={(event) => onCommit(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                onCommit(event.currentTarget.value);
-              }
-              if (event.key === "Escape") onCancel();
-            }}
-          />
+        <foreignObject
+          x={box.x + 6}
+          y={box.y + box.h / 2 - 12}
+          width={Math.max(48, box.w - 12)}
+          height={24}
+          style={{ overflow: "visible" }}
+        >
+          <div {...{ xmlns: "http://www.w3.org/1999/xhtml" }}>
+            <input
+              autoFocus
+              defaultValue={node.label}
+              aria-label={`Label ${id}`}
+              data-testid="board-label-input"
+              className="board-label-input"
+              onPointerDown={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onBlur={(event) => onCommit(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  onCommit(event.currentTarget.value);
+                }
+                if (event.key === "Escape") onCancel();
+              }}
+            />
+          </div>
         </foreignObject>
       ) : (
         <text

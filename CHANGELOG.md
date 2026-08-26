@@ -2,6 +2,14 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Box labels and pen strokes actually work in the browser
+
+- Drawing a box now opens the label field (type, Enter). Double-click still edits; that path uses `dblclick`, not `pointerdown.detail` (often 0).
+- Do not `setPointerCapture` on every pointerdown — that stole clicks from the SVG `foreignObject` input. Capture only once a pan/box/pen/move/marquee drag starts. Skip capture when the target is an input.
+- Sub-4px jitter is not a move, so a rename click does not nudge `pin`.
+- Pen commits the pointerup point so a stroke with no `pointermove` events still inks (computer-use / sparse events).
+- Label input sits in an XHTML wrapper inside `foreignObject`.
+
 ## 2026-08-26 — RAG edge cases, whole-board refuse, double-click labels
 
 - Host channel: long “build/generate a … architecture/pipeline” prompts do not write the scene (SHA stable). Color targeting and split-without-edges ask.

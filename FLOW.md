@@ -22,7 +22,7 @@ Browser  :5173  →  Vite (repo root)
 ## User loop
 
 1. Open Settings and paste keys. Type-in needs OmniRoute; Talk needs Groq + OmniRoute.
-2. Draw on the board (box / pen / connect) or use the demo nodes. Select objects. Drag writes `pin`.
+2. Draw on the board (box / pen / connect) or use the demo nodes. Releasing a box opens the label field. Select objects. Drag writes `pin` only after a 4px threshold.
 3. Type a command **or** click Talk (300ms–15s), then Stop talking.
 4. Talk → `POST /api/transcribe` (Groq). Empty text or `no_speech_prob >= 0.6` → unknown; skip OmniRoute.
 5. Host undo phrases (`undo`, `put it back`, `undo last kafka bit`) skip OmniRoute and restore a snapshot / journal hunk.
@@ -87,3 +87,5 @@ transcript + selectionCount + selection[]
 | Redis added beside the DB | Insert left a sidecar; must splice the edge |
 | Question changed the diagram | `applyTurn` must SHA-stabilize questions |
 | Opened the wrong canvas | You ran `frontend/`; use repo-root `npm run dev` |
+| Box has no label field / typing goes nowhere | SVG captured the pointer; capture is drag-only, see `src/canvas/Board.tsx` |
+| Pen stroke vanished | No `pointermove`; up-point must be appended before `commitPenStroke` |
