@@ -13,7 +13,10 @@ import {
   type Settings,
 } from "./settings/store";
 import { VoiceRecorder } from "./voice/recorder";
-import { transcribeAudio } from "./voice/transcribeClient";
+import {
+  shouldSkipIntentFromStt,
+  transcribeAudio,
+} from "./voice/transcribeClient";
 
 type VoiceState =
   | "idle"
@@ -99,7 +102,7 @@ export default function App() {
       busyRef.current = false;
       return;
     }
-    if (!result.text || result.noSpeechProb >= 0.6) {
+    if (shouldSkipIntentFromStt(result.text, result.noSpeechProb)) {
       const unknown = unknownCommand();
       setTranscript(result.text);
       setCommand(unknown);

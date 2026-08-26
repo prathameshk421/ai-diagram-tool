@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { keywordParser } from "../../src/intent/keywordParser";
-import type { Command } from "../../src/intent/types";
+import { BARE_ALIGN_SAY, BARE_DISTRIBUTE_SAY, type Command } from "../../src/intent/types";
 
 function expectOp(
   text: string,
@@ -78,6 +78,7 @@ describe("keywordParser", () => {
   it("bare align is unknown at 0.8 and skips LLM", () => {
     expectOp("align these", "unknown", {}, 0.8);
     expectOp("align", "unknown", {}, 0.8);
+    expect(keywordParser("align these").say).toBe(BARE_ALIGN_SAY);
   });
 
   it("distribute vertically", () => {
@@ -91,6 +92,7 @@ describe("keywordParser", () => {
   it("bare distribute / space evenly do not invent h", () => {
     expectOp("distribute", "unknown", {}, 0.8);
     expectOp("space these evenly", "unknown", {}, 0.8);
+    expect(keywordParser("space these evenly").say).toBe(BARE_DISTRIBUTE_SAY);
   });
 
   it("snap", () => {

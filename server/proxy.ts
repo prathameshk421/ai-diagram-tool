@@ -132,32 +132,41 @@ async function handleIntent(
 }
 
 function mount(middlewares: Connect.Server): void {
-  middlewares.use(async (req, res, next) => {
-    const url = req.url?.split("?")[0] ?? "";
-    if (url === "/api/transcribe") {
-      if (req.method !== "POST") {
-        if (!bearerToken(req)) {
-          sendJson(res, 401, { error: "missing_groq_key" });
-          return;
-        }
-        res.statusCode = 405;
-        res.setHeader("Allow", "POST");
-        res.end();
-        return;
-      }
-      await handleTranscribe(req, res);
-      return;
-    }
-    if (url === "/api/intent") {
-      if (req.method !== "POST") {
-        sendJson(res, 405, { error: "method_not_allowed" });
-        return;
-      }
-      await handleIntent(req, res);
-      return;
-    }
-    next();
+  middlewares.use((req, res, next) => {
+    void diagramApi(req, res, next);
   });
+}
+
+/** Connect handler. Exported so tests can hit auth locks without Vite or live APIs. */
+export async function diagramApi(
+  req: IncomingMessage,
+  res: ServerResponse,
+  next: () => void,
+): Promise<void> {
+  const url = req.url?.split("?")[0] ?? "";
+  if (url === "/api/transcribe") {
+    if (req.method !== "POST") {
+      if (!bearerToken(req)) {
+        sendJson(res, 401, { error: "missing_groq_key" });
+        return;
+      }
+      res.statusCode = 405;
+      res.setHeader("Allow", "POST");
+      res.end();
+      return;
+    }
+    await handleTranscribe(req, res);
+    return;
+  }
+  if (url === "/api/intent") {
+    if (req.method !== "POST") {
+      sendJson(res, 405, { error: "method_not_allowed" });
+      return;
+    }
+    await handleIntent(req, res);
+    return;
+  }
+  next();
 }
 
 export function diagramProxyPlugin(): Plugin {

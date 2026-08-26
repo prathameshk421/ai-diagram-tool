@@ -55,6 +55,16 @@ describe("resolveCommand", () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  it("does not call OmniRoute when the URL is whitespace", async () => {
+    const request = vi.fn();
+    const command = await resolveCommand("line these up on the left", 2, {
+      ...keyed,
+      omnirouteUrl: "   ",
+    }, request);
+    expect(command.op).toBe("unknown");
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it("does not call OmniRoute when the key is empty", async () => {
     const request = vi.fn();
     const command = await resolveCommand("line these up on the left", 2, emptyKeys, request);
@@ -112,13 +122,16 @@ describe("requestIntent payload", () => {
       "http://localhost:20128",
     );
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
-    expect(body.model).toBe(FLASH_MODEL);
+    expect(body.model).toBe("opencode-go/deepseek-v4-flash");
     expect(body.thinking).toEqual({ type: "disabled" });
+    expect(JSON.stringify(body)).not.toMatch(/"thinking":false/);
     expect(body.response_format).toBeUndefined();
+    expect(body.tools).toBeUndefined();
     expect(body.temperature).toBe(0);
     expect(body.max_tokens).toBe(200);
     expect(body.stream).toBe(false);
     const messages = body.messages as { role: string; content: string }[];
+    expect(messages).toHaveLength(2);
     expect(messages[0].content).toBe(SYSTEM_PROMPT);
     expect(SYSTEM_PROMPT.toLowerCase()).toContain("json");
     expect(messages[1].content).toBe(
@@ -152,8 +165,9 @@ describe("requestIntent payload", () => {
       string,
       unknown
     >;
-    expect(body.model).toBe(PRO_MODEL);
+    expect(body.model).toBe("opencode-go/deepseek-v4-pro");
     expect(body.thinking).toEqual({ type: "disabled" });
+    expect(JSON.stringify(body)).not.toMatch(/"thinking":false/);
   });
 
   it("HTTP 400 retries once with thinking omitted", async () => {
@@ -263,5 +277,36 @@ describe("requestIntent payload", () => {
     const { requestIntent } = await import("../../src/intent/omnirouteClient");
     const command = await requestIntent(keyed, "clean this up", 1);
     expect(command.op).toBe("align");
+  });
+
+  it("HTTP 400 then 400 still only retries once", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => "still bad",
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { requestIntent } = await import("../../src/intent/omnirouteClient");
+    const command = await requestIntent(keyed, "clean this up", 1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(command.op).toBe("unknown");
+  });
+
+  it("does not retry intent 500", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: async () => "nope",
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { requestIntent } = await import("../../src/intent/omnirouteClient");
+    const command = await requestIntent(keyed, "clean this up", 1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body)) as Record<
+      string,
+      unknown
+    >;
+    expect(body.thinking).toEqual({ type: "disabled" });
+    expect(command.op).toBe("unknown");
   });
 });

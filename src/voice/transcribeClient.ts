@@ -3,6 +3,8 @@ import { filenameForMime } from "./recorder";
 const STT_TIMEOUT_MS = 8000;
 const MAX_RETRIES = 2;
 const RETRY_AFTER_CAP_MS = 2000;
+/** Empty text or this no-speech floor skips the LLM. */
+export const NO_SPEECH_SKIP = 0.6;
 const GROQ_PROMPT =
   "perfect this, align left, snap to grid, distribute, rotate, connect these";
 
@@ -51,6 +53,14 @@ function maxNoSpeechProb(parsed: Record<string, unknown>): number {
     }
   }
   return max;
+}
+
+/** After STT: skip intent when Groq heard nothing or is unsure it is speech. */
+export function shouldSkipIntentFromStt(
+  text: string,
+  noSpeechProb: number,
+): boolean {
+  return !text || noSpeechProb >= NO_SPEECH_SKIP;
 }
 
 export async function transcribeAudio(
