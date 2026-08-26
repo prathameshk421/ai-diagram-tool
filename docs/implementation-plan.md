@@ -1,18 +1,40 @@
-# v1 implementation plan
+# v1.1 implementation plan
 
 Voice-driven Excalidraw architecture diagrammer. A junior engineer should be able to implement this file top-to-bottom without inventing product behavior.
+
+**v1.1 ships the complete app in one PR:** Excalidraw canvas + Groq Whisper STT + OmniRoute OpenCode Go DeepSeek intent + UI. Buttons-without-keys is the demo floor, not a substitute for STT/LLM. STT and LLM are in-scope to implement. They are not optional follow-up PRs.
 
 **Locked (do not reopen):**
 - Target = current selection only. Nothing selected → refuse. Do not guess.
 - Geometry is TypeScript. The LLM never emits coordinates, element JSON, or scene patches.
 - STT = Groq Whisper `whisper-large-v3-turbo` via same-origin `POST /api/transcribe`.
-- Intent = OmniRoute `POST {base}/v1/chat/completions` model `opencode-go/deepseek-v4-pro` via same-origin `POST /api/intent`.
+- Intent = OmniRoute `POST {base}/v1/chat/completions` via same-origin `POST /api/intent`. User configures OpenCode Go DeepSeek in the OmniRoute dashboard and pastes the OmniRoute gateway key + Groq key in Settings.
+- Default model `opencode-go/deepseek-v4-flash`. Settings may override to `opencode-go/deepseek-v4-pro`. Same client, same proxy, same JSON schema. Do not ship a half-built LLM path.
+- Thinking **off** on every OmniRoute request: `"thinking": { "type": "disabled" }`. Never send `thinking.type: enabled` or `reasoning_effort`. Pro is GO because thinking is off.
+- Keywords first. Known phrases never wait on the LLM. OmniRoute runs only if the parser returns `unknown` **and** the OmniRoute key is set.
+- Same-origin Vite proxy only. The browser never calls Groq or OmniRoute directly.
+- No Web Speech. No `webkitSpeechRecognition`. Groq fail → toast + toolbar.
+- No env-key fallback. Keys come from Settings request headers only. The proxy must not read `process.env.GROQ_API_KEY` or any other env secret.
 - We do **not** ship OpenCode. The user configures an OpenCode Go DeepSeek connection + OmniRoute API key in the OmniRoute dashboard.
 - Buttons work with empty keys.
 - Ops: perfect, align, distribute, snap, bigger, smaller, equalize, connect, rotate.
 - English only. Undo = native Excalidraw history.
 
-This plan **supersedes** `docs/features.md` where that file still says “local-only / Web Speech / no LLM / no backend.” Update the decision log in the same PR as the scaffold (section 8).
+## Reliability locks (ship these; they are not hedges)
+
+These former “conditions” are implementation requirements. They do not delay v1.1.
+
+- **Thinking off.** Every `/api/intent` body includes `"thinking": { "type": "disabled" }`. Parse `choices[0].message.content` only. Ignore `reasoning_content` if present.
+- **Keywords first.** `resolveCommand` always runs `keywordParser` before OmniRoute. A parser hit is the command. Do not “confirm” a known phrase with the LLM.
+- **Proxy.** `POST /api/transcribe` → Groq. `POST /api/intent` → `{X-OmniRoute-Base}/v1/chat/completions`. Timeouts: 30s STT, 60s intent → `504 {"error":"upstream_timeout"}` then keyword/unknown path already taken or toast.
+- **Flash default.** Store default `omnirouteModel = "opencode-go/deepseek-v4-flash"`. Pro is a Settings override, not a second code path.
+- **No Web Speech.** Delete any plan to add `src/voice/webSpeech.ts` or a `webSpeechFallback` setting.
+- **No env-key fallback.** Empty Settings Groq key → proxy `401 {"error":"missing_groq_key"}` even if the process env has a key.
+- **Upstream down still ships.** OmniRoute or Groq offline is a runtime toast + keyword/button floor. The STT and LLM clients still ship in v1.1.
+- **Invalid LLM output.** `isCommand()` fail, extra coordinate-like keys, or `confidence < 0.45` → treat as unknown. Geometry never sees raw model text.
+- **Local-demo SSRF.** `/api/intent` forwards to the Settings URL (A13). v1.1 is a local demo. Do not delay for an allowlist. Strip a trailing slash only.
+
+This plan **supersedes** any leftover “local-only / Web Speech / no LLM” wording. `docs/features.md` decision log 11–21 is the contract.
 
 ---
 
@@ -22,7 +44,7 @@ Mark these in code comments as `ASSUMPTION` so they are easy to change.
 
 | ID | Assumption | Default |
 |---|---|---|
-| A1 | Groq API key lives in Settings next to OmniRoute (drawer is “for keys”). If Settings Groq key is empty, proxy may use env `GROQ_API_KEY`. | both |
+| A1 | Groq API key lives in Settings next to OmniRoute (drawer is “for keys”). Settings key is the only key. Proxy must not fall back to env. | Settings only |
 | A2 | Default OmniRoute base URL | `http://localhost:20128` (OmniRoute’s documented default; no trailing slash) |
 | A3 | Bigger/smaller scale | `1.25` / `0.8` around each element’s own center |
 | A4 | Rotate | `+90°` clockwise (`angle += Math.PI/2`), each selected element around its own center |
@@ -30,9 +52,9 @@ Mark these in code comments as `ASSUMPTION` so they are easy to change.
 | A6 | Align/distribute with no axis in the phrase | refuse with hint copy (do not default to left/horizontal) |
 | A7 | Connect order | `Object.keys(appState.selectedElementIds)` (Excalidraw insertion/selection order). Arrow `first → second`; chain `1→2, 2→3, …` |
 | A8 | Grid size for snap | `20` (Excalidraw default) |
-| A9 | LLM confidence < `0.45`, invalid JSON, or HTTP failure | run keyword parser; if that also fails → unknown |
+| A9 | After keywords miss: LLM confidence < `0.45`, invalid JSON, or HTTP/timeout | unknown (parser already ran; do not call it a second time) |
 | A10 | Scene persist | `localStorage` key `ai-diagram-tool:scene`. Settings: `ai-diagram-tool:settings` |
-| A11 | Type-in box | keyword parser first; LLM only if parser returns `unknown` **and** OmniRoute key is set |
+| A11 | Voice transcript **and** type-in | keyword parser first; LLM only if parser returns `unknown` **and** OmniRoute key is set |
 | A12 | Perfect-shape numeric thresholds | section 1.4. Treat as tunables, not product forks |
 | A13 | SSRF | `/api/intent` forwards to the URL from Settings. v1 is a local demo; do not add a URL allowlist unless asked |
 | A14 | Test runner | Vitest. No Playwright in v1; browser flow is a manual checklist |
@@ -69,7 +91,6 @@ Create these paths. Do not add files outside this list in v1.
     voice/
       recorder.ts
       transcribeClient.ts
-      webSpeech.ts
     intent/
       types.ts
       systemPrompt.ts
@@ -95,6 +116,7 @@ Create these paths. Do not add files outside this list in v1.
     proxy.ts                         # Vite middleware: /api/transcribe, /api/intent
   tests/
     intent/keywordParser.test.ts
+    intent/resolveCommand.test.ts
     geometry/perfect.test.ts
     geometry/align.test.ts
     geometry/distribute.test.ts
@@ -106,7 +128,7 @@ Create these paths. Do not add files outside this list in v1.
     geometry/applyOp.test.ts
 ```
 
-**Do not create:** a Python backend, Docker, auth, a second canvas, icon libraries, TTS.
+**Do not create:** a Python backend, Docker, auth, a second canvas, icon libraries, TTS, Web Speech, env-key fallback, thinking-enabled OmniRoute calls.
 
 ### 1.1 Scaffold commands (run in `/workspace`)
 
@@ -162,17 +184,18 @@ html, body, #root { height: 100%; margin: 0; }
 .canvas { flex: 1; min-height: 0; }
 ```
 
-`.env.example` (never commit real keys):
+Do **not** add `.env` keys for Groq or OmniRoute. Keys are Settings-only. A committed `.env.example` may exist as an empty comment file so nobody copies an env fallback:
 
 ```
-GROQ_API_KEY=
+# Keys are pasted in the in-app Settings drawer.
+# The Vite proxy must not read GROQ_API_KEY or OMNIROUTE_API_KEY from the environment.
 ```
 
 ---
 
 ## 2. Data flow (mic → Groq → OmniRoute → geometry → canvas)
 
-Buttons skip steps 1–6. Type-in skips 1–3 (and 4–6 if the keyword parser hits).
+Buttons skip steps 1–6. Type-in skips 1–3. Both voice transcript and type-in use the same `resolveCommand` (keywords first).
 
 ```
 1. Pointer down on "Hold to talk"
@@ -184,16 +207,15 @@ Buttons skip steps 1–6. Type-in skips 1–3 (and 4–6 if the keyword parser h
 4. Groq JSON { text }
       show transcript in StatusBar
 5. resolveCommand(text, selectionCount)     src/intent/resolveCommand.ts
-      a. if OmniRoute URL + key set:
+      a. keywordParser(text)                src/intent/keywordParser.ts
+         if op !== "unknown" → that Command (do not call OmniRoute)
+      b. if unknown AND OmniRoute URL + key set:
            POST /api/intent (section 5)
            parse choices[0].message.content → Command
-           if invalid JSON or confidence < 0.45 (A9) → (b)
-      b. keywordParser(text)                src/intent/keywordParser.ts
+           if invalid JSON, extra coordinate-like keys, or confidence < 0.45 (A9) → unknown
       c. if still unknown → toast "Didn't catch that"
-6. If Groq HTTP error / network fail
-      if Web Speech available and Settings.webSpeechFallback === true:
-           re-prompt via Web Speech (one-shot) then jump to 5
-      else toast Groq error copy (section 7)
+6. If Groq HTTP error / network fail / missing key
+      toast Groq error copy (section 7). Do not start Web Speech. Toolbar still works.
 7. applyOp(command, api)                    src/geometry/applyOp.ts
       read api.getAppState().selectedElementIds
       if empty → refuse, no scene write
@@ -203,7 +225,7 @@ Buttons skip steps 1–6. Type-in skips 1–3 (and 4–6 if the keyword parser h
    api.setToast({ message: command.say, duration: 2500 })
 ```
 
-**Invariant:** `applyOp` is the only writer. LLM output is a `Command`. If `op === "unknown"`, do not call `updateScene`.
+**Invariant:** `applyOp` is the only writer. LLM output is a `Command`. If `op === "unknown"`, do not call `updateScene`. The model never emits coordinates.
 
 ---
 
@@ -215,13 +237,16 @@ File: `src/settings/store.ts`. Persist JSON in `localStorage["ai-diagram-tool:se
 |---|---|---|---|---|
 | `omnirouteUrl` | string | `http://localhost:20128` | OmniRoute URL | `http://localhost:20128` |
 | `omnirouteApiKey` | string | `""` | OmniRoute API key | `sk-…` |
+| `omnirouteModel` | `"opencode-go/deepseek-v4-flash"` \| `"opencode-go/deepseek-v4-pro"` | `opencode-go/deepseek-v4-flash` | OmniRoute model | Flash (default) / Pro |
 | `groqApiKey` | string | `""` | Groq API key | `gsk_…` |
-| `webSpeechFallback` | boolean | `true` | Fall back to Web Speech if Groq fails | — |
 
 **Not in Settings (locked in code):**
 - Groq model `whisper-large-v3-turbo`
-- OmniRoute model `opencode-go/deepseek-v4-pro`
 - STT `language=en`, `temperature=0`
+- Thinking always `{ "type": "disabled" }` (not a toggle)
+- No Web Speech toggle
+
+**Model select:** two options only. Label **DeepSeek Flash** → `opencode-go/deepseek-v4-flash`. Label **DeepSeek Pro** → `opencode-go/deepseek-v4-pro`. Both use the same `/api/intent` client. Switching to Pro must not enable thinking.
 
 **Save behavior:** button **Save** writes localStorage and closes the drawer. **Close** discards unsaved edits.
 
@@ -260,9 +285,7 @@ Authorization: Bearer <settings.groqApiKey or empty>
 Content-Type: multipart/form-data (browser-set boundary)
 ```
 
-Proxy: clone the multipart body to Groq. Set `Authorization: Bearer ${clientHeader || process.env.GROQ_API_KEY}`. Do not rewrite the filename.
-
-If both client key and env are empty → `401` JSON `{ "error": "missing_groq_key" }`.
+Proxy: clone the multipart body to Groq. Set `Authorization: Bearer ${clientHeader}`. If the incoming `Authorization` header is missing or `Bearer` is empty → `401` JSON `{ "error": "missing_groq_key" }`. **Do not** read `process.env.GROQ_API_KEY`. Do not rewrite the filename.
 
 Success pass-through:
 
@@ -292,15 +315,16 @@ X-OmniRoute-Base: http://localhost:20128
 Content-Type: application/json
 ```
 
-If `omnirouteUrl` or `omnirouteApiKey` is empty, **do not call** `/api/intent`; use the keyword parser.
+If `omnirouteUrl` or `omnirouteApiKey` is empty, **do not call** `/api/intent`; use the keyword parser (already the first step).
 
-Request body (exact):
+Request body (exact). `model` is `settings.omnirouteModel` (default flash). `thinking` is always disabled:
 
 ```json
 {
-  "model": "opencode-go/deepseek-v4-pro",
+  "model": "opencode-go/deepseek-v4-flash",
   "temperature": 0,
   "stream": false,
+  "thinking": { "type": "disabled" },
   "response_format": { "type": "json_object" },
   "messages": [
     {
@@ -315,6 +339,8 @@ Request body (exact):
 }
 ```
 
+Do not send `reasoning_effort`. Do not send `thinking: { "type": "enabled" }`. Pro override changes `model` only.
+
 User `content` is a JSON string with only:
 
 ```ts
@@ -325,7 +351,7 @@ User `content` is a JSON string with only:
 
 Proxy: `fetch(`${base}/v1/chat/completions`, { method: "POST", headers: { Authorization, "Content-Type": "application/json" }, body })` where `base = req.header("X-OmniRoute-Base")` with trailing slash stripped. Return upstream status + JSON.
 
-Parse on the client:
+Parse on the client. Use **only** `choices[0].message.content`. Ignore `reasoning_content` / thinking traces if the gateway still returns them.
 
 ```ts
 const raw = json.choices[0].message.content; // string
@@ -333,7 +359,7 @@ const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
 const command = JSON.parse(stripped);
 ```
 
-Validate with `isCommand()` in `src/intent/types.ts`. Invalid → keyword parser.
+Validate with `isCommand()` in `src/intent/types.ts`. Reject if the object contains `x`, `y`, `width`, `height`, `points`, `elements`, or any scene patch. Invalid → unknown (parser already ran).
 
 ### 5.1 Command JSON schema (locked shape)
 
@@ -451,9 +477,8 @@ After a successful op: `Last command: Aligned left.` (use `command.say` without 
 | idle | `Voice: idle` | default |
 | holding | `Voice: listening…` | MediaRecorder running |
 | transcribing | `Voice: transcribing…` | waiting on Groq |
-| thinking | `Voice: understanding…` | waiting on OmniRoute |
+| understanding | `Voice: understanding…` | waiting on OmniRoute (keywords missed) |
 | applying | `Voice: applying…` | `applyOp` running (keep short) |
-| web-speech | `Voice: browser speech…` | Web Speech fallback |
 | no-mic | `Voice: no microphone` | getUserMedia rejected |
 | error | `Voice: error` | see toasts |
 
@@ -470,7 +495,7 @@ Submit: Enter. No extra button required. Empty submit → no-op.
 Title: `Settings`  
 Fields: section 3.  
 Buttons: `Save` · `Close`  
-If Groq key empty and env also empty, still allow Save (buttons must work). Show warning (not a blocking modal):
+If Groq key empty, still allow Save (buttons must work). Show warning (not a blocking modal):
 
 `Voice needs a Groq key. Toolbar buttons still work.`
 
@@ -503,15 +528,11 @@ If OmniRoute key empty:
 
 `Didn’t catch that. Try: perfect this, align left, snap to grid.`
 
-**Groq failed, Web Speech off or unsupported:**
+**Groq failed (missing key, HTTP error, timeout, network):**
 
 `Couldn’t transcribe. Check the Groq key in Settings, or use the toolbar.`
 
-**Groq failed, Web Speech starting:**
-
-`Groq failed. Try speaking again (browser speech).`
-
-**OmniRoute failed (parser will still run; only toast if parser also unknown):** use the unknown phrase toast. Do not toast a raw stack trace.
+**OmniRoute failed (parser already ran; only toast if still unknown):** use the unknown phrase toast. Do not toast a raw stack trace. Do not fall back to Web Speech.
 
 **Mic permission denied:**
 
@@ -564,7 +585,7 @@ Do this in the **same PR as the Vite scaffold**, before writing voice code, so n
 ### 8.1 Replace §3 item 3
 
 From: “Keywords map speech → operation; code does the math.”  
-To: “Speech → Groq STT → OmniRoute (or keyword fallback) maps to a command JSON `{op, args, confidence, say}`. Code does the math. The model never emits coordinates.”
+To: “Speech → Groq STT → keyword parser, then OmniRoute on unknown, maps to a command JSON `{op, args, confidence, say}`. Code does the math. The model never emits coordinates.”
 
 ### 8.2 Replace §3 item 5–6 (voice optional / always demoable)
 
@@ -580,11 +601,10 @@ To: “Vite React Excalidraw page. No accounts. Same-origin proxies `/api/transc
 Replace “Browser Web Speech API (Chrome). No Whisper server, no Rumik/Silk, no LLM.” with:
 
 - Push-to-talk (hold or toggle).
-- Primary STT: Groq `whisper-large-v3-turbo` via `POST /api/transcribe`.
-- Primary intent: OmniRoute `opencode-go/deepseek-v4-pro` via `POST /api/intent`.
-- Fallback: keyword parser if LLM fails; optional Web Speech if Groq fails.
+- STT: Groq `whisper-large-v3-turbo` via `POST /api/transcribe`. No Web Speech.
+- Intent: keywords first; OmniRoute OpenCode Go DeepSeek (`opencode-go/deepseek-v4-flash` default, Pro via Settings) via `POST /api/intent` with thinking disabled.
 - Show transcript. Unknown → “Didn’t catch that” + examples.
-- No mic / no keys → buttons still work.
+- No mic / no keys → buttons still work. STT + LLM still ship in v1.1.
 
 ### 8.5 Rewrite §6 “hosted STT/TTS” bullet
 
@@ -592,19 +612,25 @@ Change to: “No TTS. No two-way companion. Hosted STT (Groq) and intent (OmniRo
 
 ### 8.6 Rewrite §8 table (Rumik)
 
-v1 column: “Hold a button, Groq transcribes, OmniRoute (or keywords) maps to one op, canvas changes, tool stays quiet.”  
-Do not claim Web Speech is the primary path.
+v1 column: “Hold a button, Groq transcribes, keywords map known phrases, OmniRoute DeepSeek maps the rest, canvas changes, tool stays quiet.”  
+Do not mention Web Speech.
 
 ### 8.7 Decision log — add rows (do not silently rewrite #2; strike it)
 
 | # | Topic | Decision |
 |---|---|---|
-| 2 | Stack *(superseded)* | Was: local-only, Web Speech, keywords, no backend. **Superseded by 11–14.** |
+| 2 | Stack *(superseded)* | Was: local-only, Web Speech, keywords, no backend. **Superseded by 11–21.** |
 | 11 | STT | Groq Whisper `whisper-large-v3-turbo`, `POST https://api.groq.com/openai/v1/audio/transcriptions`, proxied at `/api/transcribe`. `language=en`, `temperature=0`, vocab prompt. Filename must be `.webm`/`.wav`/`.ogg`. |
-| 12 | Intent LLM | OmniRoute `POST {base}/v1/chat/completions`, model `opencode-go/deepseek-v4-pro`. User configures OpenCode Go DeepSeek + OmniRoute key in OmniRoute dashboard. App Settings stores OmniRoute URL + key. We do not ship OpenCode. |
-| 13 | Fallbacks | Keyword parser if LLM fails. Optional Web Speech if Groq fails. |
-| 14 | Command JSON | `{ op, args, confidence, say }`. Geometry consumes this only. |
-| 15 | Keys | Settings drawer. Toolbar ops must work with empty keys. |
+| 12 | Intent LLM | OmniRoute `POST {base}/v1/chat/completions`. User configures OpenCode Go DeepSeek + OmniRoute key in OmniRoute dashboard. App Settings stores OmniRoute URL, key, and model (Flash default / Pro override). We do not ship OpenCode. |
+| 13 | Keywords first | Parser always runs first. OmniRoute only on `unknown` when the OmniRoute key is set. |
+| 14 | Command JSON | `{ op, args, confidence, say }`. Geometry consumes this only. Reject coordinate-like keys. |
+| 15 | Keys | Settings drawer only. No env-key fallback. Toolbar ops must work with empty keys. STT + LLM still ship. |
+| 16 | Thinking | Always `{ "type": "disabled" }`. Pro is GO because thinking is off. |
+| 17 | Default model | `opencode-go/deepseek-v4-flash`. Settings override `opencode-go/deepseek-v4-pro`. Same code path. |
+| 18 | No Web Speech | Groq fail → toast + toolbar. No `webkitSpeechRecognition`. |
+| 19 | Proxy | Same-origin `/api/transcribe` and `/api/intent` only. Browser never calls Groq or OmniRoute directly. |
+| 20 | Upstream down | Runtime degrade to keywords/buttons. Not a scope cut. Not a delay. |
+| 21 | SSRF | Local demo. Forward Settings URL. Strip trailing slash. No allowlist delay. |
 
 Keep rows 1, 3–10 as written.
 
@@ -612,7 +638,7 @@ Keep rows 1, 3–10 as written.
 
 ## 9. Implementation order
 
-Demoable after step 3. Do not start Groq/OmniRoute before the canvas ops work.
+Demoable after step 3 (empty keys). Steps 4–5 are **required in the same v1.1 ship**. Do not merge a canvas-only PR and call STT/LLM “later.”
 
 ### Step 1 — Repo + types (no UI)
 
@@ -672,17 +698,17 @@ Stop here and run the §9 demo in `docs/features.md` **with empty Settings**. If
 ### Step 4 — STT proxy + recorder
 
 1. `server/proxy.ts` + mount in `vite.config.ts` `configureServer` / `configurePreviewServer`.
-2. `POST /api/transcribe` as section 4.
+2. `POST /api/transcribe` as section 4. Authorization from the request only. No env fallback. Prove with: process env `GROQ_API_KEY=should-not-work` + curl with no header → still 401.
 3. `src/voice/recorder.ts` + Hold to talk.
-4. On blob: `transcribeClient.ts` → set StatusBar transcript → Step 5 still keyword-only.
-5. Web Speech fallback in `src/voice/webSpeech.ts`: `new webkitSpeechRecognition()`, `lang = "en-US"`, `interimResults = false`, `maxAlternatives = 1`. Use only after Groq failure and `webSpeechFallback === true`.
+4. On blob: `transcribeClient.ts` → set StatusBar transcript → `resolveCommand` (keywords first; OmniRoute only on unknown once Step 5 exists).
+5. Groq failure → toast in section 7.6. **Do not** add Web Speech.
 
-### Step 5 — LLM proxy + resolver
+### Step 5 — LLM proxy + resolver (required in v1.1)
 
-1. `POST /api/intent` as section 5.
-2. `omnirouteClient.ts` + `resolveCommand.ts` (LLM then parser).
-3. Wire voice path: transcript → `resolveCommand` → `applyOp`.
-4. Parser tests in `tests/intent/keywordParser.test.ts`.
+1. `POST /api/intent` as section 5. Body always includes `"thinking": { "type": "disabled" }`. Model from Settings (flash default).
+2. `omnirouteClient.ts` + `resolveCommand.ts` (**parser then LLM**, never the reverse).
+3. Wire voice and type-in: text → `resolveCommand` → `applyOp`.
+4. Parser tests in `tests/intent/keywordParser.test.ts`. Resolver tests in `tests/intent/resolveCommand.test.ts`.
 
 ### 9.1 Perfect-shape algorithm (`src/geometry/perfect.ts`)
 
@@ -749,18 +775,28 @@ Do not claim a step done without the matching checks.
 - `"please perfectly this"` → perfect auto
 - `"draw me aws"` → unknown
 
+**`tests/intent/resolveCommand.test.ts`**
+1. `"align left"` → align left **without** calling the OmniRoute mock (keywords first).
+2. `"please scooch these to the left side"` with OmniRoute key set → mock LLM called once; valid `{op:"align", args:{edge:"left"}, confidence:0.8, say:"Aligned left."}` returned.
+3. Same paraphrase, OmniRoute key empty → unknown, mock **not** called.
+4. Mock LLM returns `{op:"align", args:{edge:"left", x:10, y:20}, confidence:0.9}` → unknown (coordinate-like keys rejected).
+5. Mock LLM returns `confidence: 0.2` → unknown.
+6. Client payload includes `thinking: { type: "disabled" }` and default model `opencode-go/deepseek-v4-flash`. Pro override changes `model` only; thinking stays disabled.
+
 ### 10.2 curl against the proxy
 
 Dev server running (`npm run dev`). Use a tiny valid webm/wav. If you have no audio fixture, skip the file test and still hit the missing-key path.
 
 ```bash
-# Missing Groq key → 401
+# Missing Groq key → 401 even if GROQ_API_KEY is exported in the shell
+unset GROQ_API_KEY
+export GROQ_API_KEY=must-not-be-used
 curl -sS -o /tmp/t.json -w "%{http_code}" http://localhost:5173/api/transcribe
 # expect 401 and {"error":"missing_groq_key"}
 
-# Happy Groq (needs GROQ_API_KEY in env or -H)
+# Happy Groq (Authorization header only; matches Settings)
 curl -sS http://localhost:5173/api/transcribe \
-  -H "Authorization: Bearer $GROQ_API_KEY" \
+  -H "Authorization: Bearer $GROQ_KEY_FROM_SETTINGS" \
   -F file="@/path/to/align-left.webm;filename=utterance.webm;type=audio/webm" \
   -F model="whisper-large-v3-turbo" \
   -F language="en" \
@@ -772,25 +808,27 @@ curl -sS http://localhost:5173/api/transcribe \
 # Filename without extension must not be sent by our client.
 # Manual negative (optional): Groq 400 if you force filename "blob".
 
-# OmniRoute intent
+# OmniRoute intent — Flash default, thinking off
 curl -sS http://localhost:5173/api/intent \
   -H "Authorization: Bearer $OMNIROUTE_API_KEY" \
   -H "X-OmniRoute-Base: http://localhost:20128" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "opencode-go/deepseek-v4-pro",
+    "model": "opencode-go/deepseek-v4-flash",
     "temperature": 0,
     "stream": false,
+    "thinking": {"type":"disabled"},
     "response_format": {"type":"json_object"},
     "messages": [
       {"role":"system","content":"Return JSON {op,args,confidence,say}. op=align args.edge=left for align left."},
-      {"role":"user","content":"{\"transcript\":\"align left\",\"selectionCount\":2}"}
+      {"role":"user","content":"{\"transcript\":\"please scooch these to the left side\",\"selectionCount\":2}"}
     ]
   }'
 # expect choices[0].message.content JSON with op=align
+# body forwarded upstream must still contain thinking.type=disabled
 ```
 
-OmniRoute must already be running locally with an OpenCode Go DeepSeek connection. If it is down, curl should return the upstream connection error (proxy must not swallow it as 200).
+OmniRoute must already be running locally with an OpenCode Go DeepSeek connection. If it is down, curl should return the upstream connection error (proxy must not swallow it as 200). That is a runtime fail, not a reason to omit the client.
 
 ### 10.3 Browser flow (manual; empty keys first)
 
@@ -813,23 +851,26 @@ OmniRoute must already be running locally with an OpenCode Go DeepSeek connectio
 12. Save Groq key. Hold to talk, say “perfect this” with a freedraw selected → transcript appears → shape perfects (keyword parser; OmniRoute unused).
 13. Deny mic in the browser → toast `Microphone blocked. Allow mic access, or use the toolbar.` Buttons still work.
 
-**C. With Groq + OmniRoute**
+**C. With Groq + OmniRoute (required path, not a bonus)**
 
-14. Save OmniRoute URL `http://localhost:20128` + key. Say “center these horizontally” with 2+ selected → align `centerH`. Last command updates.
-15. Stop OmniRoute, say a paraphrase the keyword parser might miss → unknown toast, board unchanged.
-16. Break Groq key, leave Web Speech on (Chrome) → toast `Groq failed. Try speaking again (browser speech).` then a second utterance can still run.
+14. Save OmniRoute URL `http://localhost:20128` + key. Leave model on Flash. Say a **keyword-miss paraphrase** such as “scooch these to the left” with 2+ selected → OmniRoute maps to align left. Last command updates. Status shows `Voice: understanding…` only after the parser miss.
+15. Say “align left” (parser hit) → canvas updates **without** waiting on OmniRoute (no `understanding…` flash, or it is skipped).
+16. Settings → DeepSeek Pro → Save. Repeat a paraphrase. Request model is Pro. Thinking stays disabled. Canvas still updates.
+17. Stop OmniRoute, say a paraphrase the keyword parser misses → unknown toast, board unchanged. Buttons still work.
+18. Break Groq key → toast `Couldn’t transcribe. Check the Groq key in Settings, or use the toolbar.` No browser-speech prompt. Buttons still work.
 
 **D. Regression**
 
-17. After voice ops, unselected elements have not moved.  
-18. Excalidraw’s own rectangle tool and undo still work.
+19. After voice ops, unselected elements have not moved.  
+20. Excalidraw’s own rectangle tool and undo still work.
+21. Repo contains no `webkitSpeechRecognition` / `webSpeech` module.
 
 ### 10.4 Done when
 
-- `npm test` green.
+- `npm test` green, including `resolveCommand` keywords-first and thinking-off payload tests.
 - Browser checklist A (no keys) green.
-- curl 401 missing Groq key works even without a Groq account.
-- Checklist B/C green on a machine that has keys; if keys are absent in CI, document that B/C are manual.
+- curl 401 missing Groq key works with `GROQ_API_KEY` set in env (proves no env fallback).
+- Checklist B/C green on a machine that has Groq + OmniRoute keys. If keys are absent in CI, B/C stay **manual required** before calling the app done — they are not optional scope.
 
 ---
 
@@ -851,9 +892,10 @@ export default defineConfig({
 - Same in `configurePreviewServer`.
 - Read raw body for `/api/intent` (JSON). For `/api/transcribe`, buffer the incoming request and forward with the same `content-type` header (boundary).
 - Timeouts: 30s STT, 60s intent. On abort, return `504` `{ "error": "upstream_timeout" }`.
+- Never read `process.env` for API keys.
 
 ---
 
-## 12. Out of scope (do not implement in v1)
+## 12. Out of scope (do not implement in v1.1)
 
-Icon library, text-to-diagram, vision, Rumik/Silk TTS, numbered targeting, multiplayer, accounts, non-English, forking Excalidraw, shipping OpenCode, generating whole diagrams from a speech dump.
+Icon library, text-to-diagram, vision, Rumik/Silk TTS, numbered targeting, multiplayer, accounts, non-English, forking Excalidraw, shipping OpenCode, generating whole diagrams from a speech dump, Web Speech, env-key fallback, thinking-enabled requests.

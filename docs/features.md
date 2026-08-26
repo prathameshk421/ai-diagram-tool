@@ -1,8 +1,8 @@
 # Features
 
-v1 for a **voice-driven diagramming assistant on Excalidraw**: you sketch a software architecture diagram, **select** the element(s), then say or click an operation. Only the selection changes. Geometry is math, not a vision model.
+v1.1 for a **voice-driven diagramming assistant on Excalidraw**: you sketch a software architecture diagram, **select** the element(s), then say or click an operation. Only the selection changes. Geometry is math, not a vision model.
 
-This file is the feature contract after the first review pass. Open items are called out at the bottom.
+This file is the feature contract. Implementation detail lives in `docs/implementation-plan.md`. That plan wins where this file is stale.
 
 ---
 
@@ -12,7 +12,7 @@ A thin layer on the Excalidraw canvas. Sketch freely (including messy freehand).
 
 **Domain (locked):** architectural diagrams **for software people** — system design, AI/ML pipelines, cloud infra. Not buildings or floor plans.
 
-**Stack (locked):** local-only Excalidraw page. No accounts, no backend, no hosted APIs in v1. Scene stays in the browser.
+**Stack (locked):** Vite React Excalidraw page. No accounts. Same-origin proxies `/api/transcribe` (Groq Whisper) and `/api/intent` (OmniRoute OpenCode Go DeepSeek). Keys in Settings. Buttons work with empty keys. STT + LLM ship in v1.1.
 
 ---
 
@@ -33,10 +33,10 @@ The gap: **you point by selecting**, then a tiny intent layer runs **determinist
 
 1. **Target = current selection.** No numbering in v1. No “the blue box on the left.”
 2. **No vision model** for shape correction. Fit the selected freehand `points[]` from Excalidraw JSON.
-3. **No LLM inventing coordinates.** Keywords map speech → operation; code does the math.
+3. **No LLM inventing coordinates.** Speech → Groq STT → keyword parser, then OmniRoute on unknown, maps to a command JSON `{op, args, confidence, say}`. Code does the math. The model never emits coordinates.
 4. **Embed Excalidraw’s React component.** Do not fork the editor.
-5. **Voice is optional.** Every command has a button so the demo works without a mic.
-6. **Always demoable.** Perfect-shape first, then voice, then (later) icons.
+5. **Every command has a button** so the demo works without a mic or keys. STT and LLM are still in v1.1, not optional PRs.
+6. **Always demoable.** Perfect-shape first, then voice. Scaffold + toolbar must demo with empty Settings.
 
 ---
 
@@ -94,13 +94,14 @@ Imagine three servers side by side. “Make bigger” should make **each** box l
 **Equalize (plain English):**  
 You selected a big box and a small box. “Make these the same size” → the small one grows to match the **biggest** one. We do not use “whichever you clicked first,” because that is easy to get wrong.
 
-### F5 — Voice (v1)
+### F5 — Voice (v1.1)
 
 - Push-to-talk (hold or toggle).
-- Browser **Web Speech API** (Chrome). No Whisper server, no Rumik/Silk, no LLM.
-- Show the transcript, map keywords to one operation.
+- STT: Groq `whisper-large-v3-turbo` via `POST /api/transcribe`. **No Web Speech.**
+- Intent: keywords first; OmniRoute OpenCode Go DeepSeek (`opencode-go/deepseek-v4-flash` default, Pro via Settings) via `POST /api/intent` with thinking disabled.
+- Show the transcript, map to one operation.
 - Unknown phrase → “Didn’t catch that” + examples.
-- No mic → buttons still work.
+- No mic / no keys → buttons still work. Groq fail → toast + toolbar, not browser speech.
 
 ### F6 — Buttons / type-in
 
@@ -136,9 +137,11 @@ Same ops as voice: Perfect, Align, Distribute, Snap, Bigger, Smaller, Connect, R
 - Vision / “pretty up this sketch” with a multimodal model.
 - Two-way talking companion (Rumik/Ira style) — see below.
 - Numbered shapes for fully hands-free targeting.
-- Multiplayer, accounts, cloud sync, hosted STT/TTS.
+- Multiplayer, accounts, cloud sync.
+- **No TTS.** No two-way companion. Hosted STT (Groq) and intent (OmniRoute) are in v1.1, keyed in Settings, proxied same-origin.
 - **Icon library** (explained below) and insert-symbol-by-voice.
 - Non-English commands.
+- Web Speech, env-key fallback, thinking-enabled LLM calls.
 
 ---
 
@@ -166,22 +169,30 @@ The original idea: symbols software people actually need for AI/ML diagrams — 
 
 **What we do with that:**
 
-| v1 (locked, matches local-only) | Later (if we want Rumik-like) |
+| v1.1 (locked) | Later (if we want Rumik-like) |
 |---|---|
-| You hold a button, say “align left”, canvas changes, tool stays quiet | Always listening; tool might say “aligned three boxes”; you can interrupt it |
-| Web Speech in the browser, no API key | Hosted TTS (Silk) + a backend — **breaks local-only** |
+| You hold a button, Groq transcribes, keywords map known phrases, OmniRoute DeepSeek maps the rest, canvas changes, tool stays quiet | Always listening; tool might say “aligned three boxes”; you can interrupt it |
+| Groq Whisper + OmniRoute via same-origin proxy; keys in Settings | Hosted TTS (Silk) |
 
-v1 stays command-style on purpose. Companion voice is a later product decision, not a v1 dependency.
+v1.1 stays command-style on purpose. Companion voice is a later product decision, not a v1.1 dependency.
 
 ---
 
-## 9. Demo (v1 is done when this works)
+## 9. Demo (v1.1 is done when this works)
+
+**Empty keys (demo floor):**
 
 1. Draw a sloppy circle and two sloppy boxes.
-2. Select the circle → **Perfect** or “perfect this” → clean ellipse; undo restores ink.
-3. Select the two boxes → **Align left** / “align these left.”
-4. Select both → **Connect** / “connect these.”
-5. Nothing selected + “perfect this” → refused; the rest of the board does not move.
+2. Select the circle → **Perfect** or type `perfect this` → clean ellipse; undo restores ink.
+3. Select the two boxes → **Align left** / type `align these left.`
+4. Select both → **Connect** / type `connect these.`
+5. Nothing selected + Perfect → refused; the rest of the board does not move.
+
+**With Groq + OmniRoute (required, not a bonus):**
+
+6. Hold to talk → Groq transcript appears → known phrase runs via keywords without OmniRoute.
+7. A paraphrase the parser misses runs via OmniRoute DeepSeek (thinking off) → canvas updates.
+8. Groq or OmniRoute down → toast + toolbar/keywords still work. No Web Speech.
 
 ---
 
@@ -190,15 +201,26 @@ v1 stays command-style on purpose. Companion voice is a later product decision, 
 | # | Topic | Decision |
 |---|---|---|
 | 1 | Domain | Software architecture diagrams |
-| 2 | Stack | Local-only Excalidraw page; Web Speech; keywords; no backend |
+| 2 | Stack *(superseded)* | Was: local-only, Web Speech, keywords, no backend. **Superseded by 11–21.** |
 | 3 | Command list | Keep the full list, including rotate and equalize |
 | 4 | Perfect | Auto-detect the shape from the ink; if you name a type, that wins |
 | 5 | No selection | Refuse. Guessing later. |
 | 6 | Multi-select bigger/smaller | Each shape scales around **its own center** |
 | 7 | Equalize | Match the **largest** selected shape |
-| 8 | Icon library | Explained; stays out of v1 |
+| 8 | Icon library | Explained; stays out of v1.1 |
 | 9 | Text-to-diagram | No |
 | 10 | Language | English only |
-| — | Rumik/Ira voice | Research only for v1; two-way TTS needs a server |
+| — | Rumik/Ira voice | Research only; two-way TTS needs a later product decision |
+| 11 | STT | Groq Whisper `whisper-large-v3-turbo` via same-origin `POST /api/transcribe`. No Web Speech. |
+| 12 | Intent LLM | OmniRoute OpenCode Go DeepSeek. Flash default, Pro via Settings. Same `/api/intent` path. User configures DeepSeek in the OmniRoute dashboard. |
+| 13 | Keywords first | Parser always runs first. OmniRoute only on unknown when the key is set. |
+| 14 | Command JSON | `{ op, args, confidence, say }`. Geometry only. LLM never emits coordinates. |
+| 15 | Keys | Settings only. No env-key fallback. Buttons work with empty keys. STT + LLM still ship. |
+| 16 | Thinking | Always `{ "type": "disabled" }`. Pro is GO because thinking is off. |
+| 17 | Default model | `opencode-go/deepseek-v4-flash`. Override `opencode-go/deepseek-v4-pro`. |
+| 18 | No Web Speech | Groq fail → toast + toolbar. |
+| 19 | Proxy | Same-origin `/api/transcribe` and `/api/intent` only. |
+| 20 | Upstream down | Runtime degrade to keywords/buttons. Not a scope cut. |
+| 21 | SSRF | Local demo. Forward Settings URL. No allowlist delay. |
 
-No remaining yes/no blockers for v1 implementation unless you want to change 6 or 7 after the examples above.
+**Verdict:** FULL GO for v1.1 with the reliability locks above baked in. Nothing here is a delay.
