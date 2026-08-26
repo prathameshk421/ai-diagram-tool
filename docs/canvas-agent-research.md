@@ -344,6 +344,8 @@ Human drawing can stay crude: click-drag a box, type a label, shift-click select
 
 When you open a canvas PR, update `docs/features.md` §7 with the scene fields you actually ship, `FLOW.md` with tool dispatch, and `DECISIONS.md` with the kernel choice (closed-form v1 vs kiwi). Until then this file is the map.
 
+Utterances **48–76** (targeting, labels, questions, undo, messy voice) were scored against a later `diagram.arch.yaml` contract in [`docs/canvas-audit-48-76.md`](canvas-audit-48-76.md). That audit is harsher than the nine Command ops in §5: most of those phrases are **WORKS_IF** or **FAILS** unless the host injects selection, an answer channel exists, and the kernel grows merge/insert/duplicate/journal. Do not treat §5 as covering that band.
+
 ---
 
 ## 10. One-sentence design

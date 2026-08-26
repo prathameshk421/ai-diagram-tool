@@ -2,6 +2,13 @@
 
 Newest first. **This file is for the agent.** Append an entry on every repo change.
 
+## 2026-08-26 — Audit utterances 48–76 against arch YAML
+
+- Added `docs/canvas-audit-48-76.md`: WORKS / WORKS_IF / FAILS for targeting, labels, questions, undo, messy voice.
+- Scored against surgical `diagram.arch.yaml` edits (kernel geometry, host `selection[]`). No code.
+- 1 WORKS / 20 WORKS_IF / 8 FAILS. Hard fails: merge/dedupe, left-Kafka, blue-one, protocol labels, legend, numbered path, duplicate board, hunk undo.
+- Pointed `docs/canvas-agent-research.md` at that audit so the nine-op tool list is not read as covering 48–76.
+
 ## 2026-08-26 — Pure AI intent (no keyword table)
 
 - Deleted `keywordParser`. Every typed or spoken command goes to OmniRoute DeepSeek.
