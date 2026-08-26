@@ -96,9 +96,9 @@ You selected a big box and a small box. “Make these the same size” → the s
 
 ### F5 — Voice (v1.1)
 
-- Push-to-talk (hold or toggle).
+- Push-to-talk (hold **or** click-to-toggle Talk). Clip 300ms–15s. Empty selection at send blocks network.
 - STT: Groq `whisper-large-v3-turbo` via `POST /api/transcribe`. **No Web Speech.**
-- Intent: keywords first; OmniRoute OpenCode Go DeepSeek (`opencode-go/deepseek-v4-flash` default, Pro via Settings) via `POST /api/intent` with thinking disabled.
+- Intent: keywords first; OmniRoute OpenCode Go DeepSeek (`opencode-go/deepseek-v4-flash` default, Pro via Settings `<select>`) via `POST /api/intent` with `"thinking": { "type": "disabled" }` (never `thinking: false`; 400 omit-once).
 - Show the transcript, map to one operation.
 - Unknown phrase → “Didn’t catch that” + examples.
 - No mic / no keys → buttons still work. Groq fail → toast + toolbar, not browser speech.
@@ -201,7 +201,7 @@ v1.1 stays command-style on purpose. Companion voice is a later product decision
 | # | Topic | Decision |
 |---|---|---|
 | 1 | Domain | Software architecture diagrams |
-| 2 | Stack *(superseded)* | Was: local-only, Web Speech, keywords, no backend. **Superseded by 11–21.** |
+| 2 | Stack *(superseded)* | Was: local-only, Web Speech, keywords, no backend. **Superseded by 11–25.** |
 | 3 | Command list | Keep the full list, including rotate and equalize |
 | 4 | Perfect | Auto-detect the shape from the ink; if you name a type, that wins |
 | 5 | No selection | Refuse. Guessing later. |
@@ -213,14 +213,18 @@ v1.1 stays command-style on purpose. Companion voice is a later product decision
 | — | Rumik/Ira voice | Research only; two-way TTS needs a later product decision |
 | 11 | STT | Groq Whisper `whisper-large-v3-turbo` via same-origin `POST /api/transcribe`. No Web Speech. |
 | 12 | Intent LLM | OmniRoute OpenCode Go DeepSeek. Flash default, Pro via Settings. Same `/api/intent` path. User configures DeepSeek in the OmniRoute dashboard. |
-| 13 | Keywords first | Parser always runs first. OmniRoute only on unknown when the key is set. |
+| 13 | Keywords first | Parser always runs first. OmniRoute only on unknown when the key is set. Bare align/distribute (no axis) is terminal unknown — skip LLM. Type-in uses `resolveCommand`. |
 | 14 | Command JSON | `{ op, args, confidence, say }`. Geometry only. LLM never emits coordinates. |
 | 15 | Keys | Settings only. No env-key fallback. Buttons work with empty keys. STT + LLM still ship. |
-| 16 | Thinking | Always `{ "type": "disabled" }`. Pro is GO because thinking is off. |
-| 17 | Default model | `opencode-go/deepseek-v4-flash`. Override `opencode-go/deepseek-v4-pro`. |
+| 16 | Thinking | Send `"thinking": { "type": "disabled" }`. Never `thinking: false`. Never `type: enabled` or `reasoning_effort`. Intent HTTP 400 → retry **once** with `thinking` omitted. No other retries. |
+| 17 | Default model | `opencode-go/deepseek-v4-flash`. Settings `<select>` Flash / Pro only. No free-text model field. Pro override changes `model` only. |
 | 18 | No Web Speech | Groq fail → toast + toolbar. |
 | 19 | Proxy | Same-origin `/api/transcribe` and `/api/intent` only. |
 | 20 | Upstream down | Runtime degrade to keywords/buttons. Not a scope cut. |
 | 21 | SSRF | Local demo. Forward Settings URL. No allowlist delay. |
+| 22 | STT silence | Groq `verbose_json`. Empty text or `no_speech_prob >= 0.6` → skip LLM. |
+| 23 | Client timeouts | Abort STT 8s / intent 4s. Proxy 30s / 60s → `504`. |
+| 24 | Voice clip | Click-to-toggle Talk + hold-to-talk. PTT 300ms–15s. Empty selection at send blocks network. |
+| 25 | Persist | `localStorage` scene + settings. CI not gated on live DeepSeek. Hosted deploy out of v1.1. |
 
-**Verdict:** FULL GO for v1.1 with the reliability locks above baked in. Nothing here is a delay.
+**Verdict:** FULL GO. v1.1 ships in one PR. No conditional. No delay.
