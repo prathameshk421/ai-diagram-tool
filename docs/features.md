@@ -12,7 +12,7 @@ A thin layer on the Excalidraw canvas. Sketch freely (including messy freehand).
 
 **Domain (locked):** architectural diagrams **for software people** — system design, AI/ML pipelines, cloud infra. Not buildings or floor plans.
 
-**Stack (locked):** local-only Excalidraw page. No accounts, no backend, no hosted APIs in v1. Scene stays in the browser.
+**Stack (locked):** React web app. **Firebase** for production: Google login (Auth), saved diagrams (Firestore), Hosting. FastAPI stays as a small Python API for later helpers. The canvas still works without being signed in (scene in the browser until you save).
 
 ---
 
@@ -46,7 +46,8 @@ The gap: **you point by selecting**, then a tiny intent layer runs **determinist
 
 - Full editor: draw, select, pan, zoom, undo/redo, export.
 - Chrome: toolbar, selection count, last command, voice status.
-- Persist locally (localStorage or IndexedDB).
+- Persist while drawing in the browser (localStorage or IndexedDB).
+- **Signed-in save:** Cloud Firestore, scoped to the Google account. Debounced saves (not every stroke) so we stay inside the Spark free quota.
 
 ### F2 — Selection is the only target
 
@@ -112,6 +113,13 @@ Same ops as voice: Perfect, Align, Distribute, Snap, Bigger, Smaller, Connect, R
 - Mutations go through Excalidraw undo.
 - Never rewrite the rest of the diagram.
 
+### F8 — Google login and production
+
+- **Sign in with Google** via Firebase Auth.
+- Unsigned users can still sketch locally.
+- Production deploy: Firebase Hosting for the React app. Spark free tier is enough to test (Firestore 50k reads / 20k writes per day).
+- Stay on Spark until traffic is real. Do not auto-save on every pointer move.
+
 ---
 
 ## 5. v1 phrases (English only)
@@ -136,7 +144,8 @@ Same ops as voice: Perfect, Align, Distribute, Snap, Bigger, Smaller, Connect, R
 - Vision / “pretty up this sketch” with a multimodal model.
 - Two-way talking companion (Rumik/Ira style) — see below.
 - Numbered shapes for fully hands-free targeting.
-- Multiplayer, accounts, cloud sync, hosted STT/TTS.
+- Multiplayer / live cursors.
+- Hosted STT/TTS (Whisper, Rumik, Deepgram).
 - **Icon library** (explained below) and insert-symbol-by-voice.
 - Non-English commands.
 
@@ -166,12 +175,12 @@ The original idea: symbols software people actually need for AI/ML diagrams — 
 
 **What we do with that:**
 
-| v1 (locked, matches local-only) | Later (if we want Rumik-like) |
+| v1 (locked) | Later (if we want Rumik-like) |
 |---|---|
 | You hold a button, say “align left”, canvas changes, tool stays quiet | Always listening; tool might say “aligned three boxes”; you can interrupt it |
-| Web Speech in the browser, no API key | Hosted TTS (Silk) + a backend — **breaks local-only** |
+| Web Speech in the browser | Hosted TTS (Silk) — extra API, not needed for Google login |
 
-v1 stays command-style on purpose. Companion voice is a later product decision, not a v1 dependency.
+v1 stays command-style on purpose. Companion voice is a later product decision. Firebase is for **auth, save, and hosting**, not for the mic.
 
 ---
 
@@ -190,7 +199,7 @@ v1 stays command-style on purpose. Companion voice is a later product decision, 
 | # | Topic | Decision |
 |---|---|---|
 | 1 | Domain | Software architecture diagrams |
-| 2 | Stack | Local-only Excalidraw page; Web Speech; keywords; no backend |
+| 2 | Stack | React + Firebase (Auth Google, Firestore, Hosting) + FastAPI for Python helpers; Web Speech in the browser |
 | 3 | Command list | Keep the full list, including rotate and equalize |
 | 4 | Perfect | Auto-detect the shape from the ink; if you name a type, that wins |
 | 5 | No selection | Refuse. Guessing later. |
@@ -199,6 +208,7 @@ v1 stays command-style on purpose. Companion voice is a later product decision, 
 | 8 | Icon library | Explained; stays out of v1 |
 | 9 | Text-to-diagram | No |
 | 10 | Language | English only |
-| — | Rumik/Ira voice | Research only for v1; two-way TTS needs a server |
+| 11 | Auth / deploy | Google login; Firestore for saved scenes; Firebase Hosting for production |
+| — | Rumik/Ira voice | Research only for v1; two-way TTS is separate from Firebase |
 
 No remaining yes/no blockers for v1 implementation unless you want to change 6 or 7 after the examples above.
